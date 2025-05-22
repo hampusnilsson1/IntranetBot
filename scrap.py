@@ -1,13 +1,39 @@
+import logging
 import re
 from bs4 import BeautifulSoup
+import pdfplumber
 from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
 import os
 
+import requests
 
-def get_page_details(page_url, cookie_name, cookie_value):
+UNWANTED_TAGS = [  # Due to site having no main element and inconsistency
+    "header",
+    "footer",
+    "nav",
+    "aside",
+    "script",
+    "style",
+    "noscript",
+    "iframe",
+]
+UNWANTED_CLASSES = [
+    "tm-header",
+    "tm-header-mobile",
+    "tm-footer",
+    "tm-sidebar",
+    "uk-nav",
+    "cookie",
+    "search",
+    "sidebarmenu",
+]
+UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie"]
+
+
+def scrap_site(page_url, cookie_name, cookie_value):
     # Playwright Test
-    with sync_playwright() as p:  # I Framtiden i Dockerfile kör "playwright install"
+    with sync_playwright() as p:  # "playwright install" Needed in Dockerfile in future
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
 
@@ -47,7 +73,22 @@ def get_page_details(page_url, cookie_name, cookie_value):
         soup = BeautifulSoup(content, "html.parser")
 
         title = soup.title.string if soup.title else "No title found"
-        main_content = soup.find("main")
+
+        main_content = soup.find("div", id="tm-main")
+        if not main_content:
+            main_content = soup.find("div", class_="tm-page") or soup.find("body")
+
+        # Filter unnecessary elements
+        for tag in UNWANTED_TAGS:
+            for match in main_content.find_all(tag):
+                match.decompose()
+        for class_name in UNWANTED_CLASSES:
+            for match in soup.find_all(class_=lambda c: c and class_name in c):
+                match.decompose()
+        for id in UNWANTED_IDS:
+            for match in main_content.find_all(id=id):
+                match.decompose()
+
         if main_content:
             for cookie_div in main_content.find_all(
                 "div", id=re.compile("cookie", re.IGNORECASE)
@@ -55,44 +96,48 @@ def get_page_details(page_url, cookie_name, cookie_value):
                 cookie_div.decompose()
             texts = " ".join(main_content.stripped_strings)
         else:
-            texts = "Main tag not found or empty"
+            texts = "Main or Page not found or empty."
 
         results = []
-
         results.append({"url": page_url, "title": title, "texts": texts})
 
-        # Alternatively, get all links on the page
-        for link in soup.find_all("a"):
-            href = link.get("href")
-            # Filter out private links
-            if href and (
-                "/min-profil" in href
-                or "/loggaut" in href
-                or "/uppdatera-min-profil" in href
-                or "/mina-kontakter" in href
-                or "/samarbete" in href
-                or "/sok-efter-anvandare-och-grupper" in href
-                or "/visa-allaanvandare" in href
-                # Unsure of this link: https://intranet.falkenberg.se/index.php?option=com_easysocial&view=profile&layout=downloadFile&fileid=7888&tmpl=component
-            ):
-                continue
-
-            if href and href.startswith("/"):
-                href = "https://intranet.falkenberg.se" + href
-            if href and (
-                href.startswith("https://intranet.falkenberg.se")
-                or href.startswith("/")
-            ):
-                print(href)
+        # Site Pdfs
+        pdf_links = soup.find_all("a", href=re.compile(r"\.pdf$", re.IGNORECASE))
+        for link in pdf_links:
+            pdf_url = link["href"]
+            if pdf_url.startswith("/"):
+                pdf_url = "https://kommun.falkenberg.se" + pdf_url
+            pdf_text = scrap_pdf(pdf_url=pdf_url)
+            results.append(
+                {
+                    "url": pdf_url,
+                    "title": link.text.strip() or "No title",
+                    "texts": pdf_text,
+                    "source_url": page_url,
+                }
+            )
+        return results
 
 
-# Start
-load_dotenv("COOKIE.env")
-COOKIE_NAME = os.getenv("COOKIE_NAME")
-COOKIE_VALUE = os.getenv("COOKIE_VALUE")
+def scrap_pdf(pdf_url):
+    pdf_file_path = "temp.pdf"
+    try:
+        response = requests.get(pdf_url)
+        response.raise_for_status()
 
-get_page_details(
-    page_url="https://intranet.falkenberg.se/start2",
-    cookie_name=COOKIE_NAME,
-    cookie_value=COOKIE_VALUE,
-)
+        with open(pdf_file_path, "wb") as f:
+            f.write(response.content)
+
+        text_content = []
+        with pdfplumber.open(pdf_file_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_content.append(page_text)
+        return " ".join(text_content) if text_content else "No text found in PDF"
+    except (requests.exceptions.RequestException, Exception) as e:
+        logging.info(f"Error fetching or processing PDF from {pdf_url}: {str(e)}")
+        return "Error fetching or processing PDF"
+    finally:
+        if os.path.exists(pdf_file_path):
+            os.remove(pdf_file_path)
