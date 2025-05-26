@@ -28,7 +28,7 @@ UNWANTED_CLASSES = [
     "search",
     "sidebarmenu",
 ]
-UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie"]
+UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie", "assistant"]
 
 
 def scrap_site(page_url, cookie_name, cookie_value):
