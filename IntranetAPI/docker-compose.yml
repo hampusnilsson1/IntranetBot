@@ -1,0 +1,10 @@
+services:
+  intranet_ai_backend:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3034:3034"
+    volumes:
+      - ../data:/app/data

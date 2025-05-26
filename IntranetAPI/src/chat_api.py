@@ -15,9 +15,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from asgiref.wsgi import WsgiToAsgi
 
-import warnings
-
-api_keys_path = "API_KEYS.env"
+api_keys_path = "../data/API_KEYS.env"
 
 
 def load_api_key(key_variable):
