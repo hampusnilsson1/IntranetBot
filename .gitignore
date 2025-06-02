@@ -1,3 +1,4 @@
 *.env
 /__pycache__
 update_logg.txt
+/Qdrant/__pycache__

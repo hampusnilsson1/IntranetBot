@@ -1,0 +1,374 @@
+<style>
+  *{
+    font-family: Montserrat, Arial, sans-serif;
+  }
+  *:focus {
+    outline: none;
+  }
+  #chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 75vh;
+    min-height: 350px;
+    max-height: 95vh;
+    width: 100%;
+    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+  }
+  #messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: #fff;
+  }
+  .message-wrapper {
+    display: flex;
+    margin-bottom: 12px;
+  }
+  .name {
+    margin-bottom: 4px;
+    color: #607ebe;
+    font-size: small;
+  }
+  .user-name {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .message {
+    padding: 12px;
+    border-radius: 10px;
+    max-width: 65%;
+    word-wrap: break-word;
+  }
+  .message p {
+    margin: 0;
+  }
+  .message ul {
+    padding-left: 20px;
+    margin-bottom: 2vh;
+    margin-top: 1vh;
+  }
+  .message li {
+    margin-bottom: 1vh;
+  }
+  .message a {
+    color: #204779;
+  }
+  .message-wrapper.user {
+    justify-content: flex-end;
+  }
+  .message-wrapper.bot {
+    justify-content: flex-start;
+  }
+  .user .message {
+    background-color: rgb(15, 140, 157);
+    color: white;
+  }
+  .bot .message {
+    background-color: rgb(230, 235, 241);
+    color: black;
+  }
+  #clear-chat {
+    background-color: #c7c7c785;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    margin-right: 10px;
+  }
+  #clear-chat:hover {
+    background-color: #c7c7c7;
+    transition: all 0.125s ease;
+  }
+  #clear-chat:active {
+    background-color: #bdbdbd;
+  }
+  #clear-chat svg {
+    display: block;
+    margin: auto;
+  }
+  #input-area {
+    display: flex;
+    padding: 10px;
+    background-color: #eaeaea;
+    border-radius: 4px;
+  }
+  #input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  #send-button {
+    margin-left: 10px;
+    padding: 10px 20px;
+    border: none;
+    background-color: rgb(15, 140, 157);
+    color: white;
+    font-size: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.125s ease;
+  }
+  #send-button:hover {
+    background-color: rgb(13, 125, 139);
+  }
+  #send-button:active {
+    background-color: rgb(11, 110, 121);
+  }
+</style>
+
+<div id="chat-container">
+  <div id="messages"></div>
+  <div id="input-area">
+    <button id="clear-chat">
+      <svg width="25" height="25" viewBox="0 0 20 20"><path fill="none" stroke="#000" d="M18.65,1.68 C18.41,1.45 18.109,1.33 17.81,1.33 C17.499,1.33 17.209,1.45 16.98,1.68 L8.92,9.76 L8,12.33 L10.55,11.41 L18.651,3.34 C19.12,2.87 19.12,2.15 18.65,1.68 L18.65,1.68 L18.65,1.68 Z"></path><polyline fill="none" stroke="#000" points="16.5 8.482 16.5 18.5 3.5 18.5 3.5 1.5 14.211 1.5"></polyline></svg>
+    </button></svg></button>
+    <input type="text" id="input" placeholder="Skriv ett meddelande..." />
+    <button id="send-button">Skicka</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
+<script>
+  const input = document.getElementById("input");
+  const messages = document.getElementById("messages");
+  const sendButton = document.getElementById("send-button");
+  appendMessage(
+    "Hej! Jag är intranätets AI-assistent och kan hjälpa dig hitta information här. Vad undrar du?",
+    "bot"
+  );
+  loadChatFromSession();
+  function appendMessage(text, sender) {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("message-wrapper", sender);
+    const message = document.createElement("div");
+    message.classList.add("message");
+    updateBotMessage(message, text);
+    wrapper.appendChild(message);
+    
+    if (sender === "user") {
+      const userName = document.createElement("p");
+      userName.classList.add("user-name");
+      userName.classList.add("name");
+      userName.textContent = "Du";
+      messages.append(userName);
+    } else if (sender === "bot") {
+      const botName = document.createElement("p");
+      botName.classList.add("bot-name");
+      botName.classList.add("name");
+      botName.textContent = "Intranet Bot";
+      messages.append(botName);
+    }
+    messages.appendChild(wrapper);
+    messages.scrollTop = messages.scrollHeight;
+    return message;
+  }
+  function sendMessage() {
+    const text = input.value.trim();
+    if (text !== "") {
+      activateUserInput(false);
+      appendMessage(text, "user");
+      input.value = "";
+      try {
+        let botanswer = getAnswerFromBot(text, () =>
+          activateUserInput(true)
+        );
+      } catch (e) {
+        console.error("Error in sending message:", e);
+        activateUserInput(true);
+      }
+    }
+  }
+  
+  sendButton.addEventListener("click", sendMessage);
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      sendMessage();
+    }
+  });
+  function getAnswerFromBot(user_question, callback) {
+    const botMessageElement = appendMessage("ㅤ", "bot");
+    const messageContainer = document.getElementById("chat-container");
+    let chat_id = messageContainer.dataset.chat_id || null;
+    const user_history = loadConvToOpenAIJson();
+    // Loader animation
+    let loadingText = "";
+    let loadingIndex = 0;
+    const loadingInterval = setInterval(() => {
+      loadingText = ".".repeat((loadingIndex % 3) + 1);
+      updateBotMessage(botMessageElement, loadingText);
+      loadingIndex++;
+    }, 300);
+    fetch("http://localhost:3034/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_input: user_question,
+        user_history: user_history,
+        chat_id: chat_id,
+      }),
+    })
+      .then((response) => {
+        if (response.status === 429) {
+          errormessage =
+            "Jag har svarat på många frågor och behöver nu vila ett tag, fråga igen senare.";
+          updateBotMessage(botMessageElement, errormessage);
+          pushMessageToSession(user_question, errormessage);
+          callback();
+          return;
+        } else if (response.status === 500) {
+          const errormessage =
+            "Servern verkar ha problem just nu. Försök gärna igen senare.";
+          updateBotMessage(botMessageElement, errormessage);
+          pushMessageToSession(user_question, errormessage);
+          callback();
+          return;
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let result = "";
+        let receivedText = "";
+        let sources = null;
+        let initialJsonDone = false;
+        function read() {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              pushMessageToSession(user_question, result, chat_id);
+              callback();
+              return;
+            }
+            const chunk = decoder.decode(value, { stream: true });
+            receivedText += chunk;
+            if (initialJsonDone != true) {
+              const separator = "\n<END_OF_JSON>\n";
+              const separatorIndex = receivedText.indexOf(separator);
+              if (separatorIndex !== -1) {
+                const jsonStr = receivedText.slice(0, separatorIndex);
+                try {
+                  const json = JSON.parse(jsonStr);
+                  sources = json.sources;
+                  if (chat_id === null && json.chat_id) {
+                    chat_id = json.chat_id;
+                    messageContainer.dataset.chat_id = chat_id;
+                  }
+                  initialJsonDone = true;
+                } catch (e) {
+                  console.error("Kunde inte parsa JSON-data:", e);
+                }
+                receivedText = receivedText.slice(
+                  separatorIndex + separator.length
+                );
+                result += receivedText;
+                receivedText = "";
+                updateBotMessage(botMessageElement, result);
+              }
+            } else {
+              result += chunk;
+              updateBotMessage(botMessageElement, result);
+            }
+            scrollToBottom();
+            read();
+          });
+        }
+        scrollToBottom();
+        clearInterval(loadingInterval);
+        read();
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        clearInterval(loadingInterval);
+        errormessage =
+          "Nått gick fel! Jag kunde inte hitta något svar på det.";
+        updateBotMessage(botMessageElement, errormessage);
+        pushMessageToSession(user_question, errormessage);
+        callback();
+      });
+  }
+  function activateUserInput(state) {
+    const inputText = document.getElementById("input");
+    const submitBtn = document.getElementById("send-button");
+    if (state) {
+      inputText.disabled = false;
+      submitBtn.disabled = false;
+      inputText.focus();
+    } else {
+      inputText.disabled = true;
+      submitBtn.disabled = true;
+    }
+  }
+  function updateBotMessage(botMessageElement, newText) {
+    botMessageElement.innerHTML = makeTextMarkdown(newText);
+    const links = botMessageElement.querySelectorAll("a");
+    links.forEach((link) => {
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+    });
+    scrollToBottom();
+  }
+  document.getElementById("clear-chat")
+  .addEventListener("click", function () {
+    clearChat();
+  });
+  function clearChat() {
+    sessionStorage.removeItem("chatHistory");
+    sessionStorage.removeItem("currentChatId");
+    const chat_container = document.getElementById("chat-container");
+    const messages = document.getElementById("messages");
+    messages.innerHTML = "";
+    delete chat_container.dataset.chat_id;
+    appendMessage(
+      "Hej! Jag är intranätets AI-assistent och kan hjälpa dig hitta information här. Vad undrar du?",
+      "bot"
+    );
+    activateUserInput(true);
+  } 
+  function scrollToBottom() {
+    const messageContainer = document.getElementById("messages");
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+  }
+  function makeTextMarkdown(text) {
+    const converter = new showdown.Converter({
+      simpleLineBreaks: true,
+      ghCompatibleHeaderId: true,
+      parseImgDimensions: true,
+      omitExtraWLInCodeBlocks: true,
+      disableForced4SpacesIndentedSublists: true,
+    });
+    const markedText = converter.makeHtml(text);
+    return markedText;
+  }
+  function loadChatFromSession() {
+    const chatHistory =
+      JSON.parse(sessionStorage.getItem("chatHistory")) || [];
+    const currentChatId = sessionStorage.getItem("currentChatId");
+    if (currentChatId) {
+      document.getElementById("chat-container").dataset.chat_id =
+        currentChatId;
+    }
+    chatHistory.forEach((item, index) => {
+      appendMessage(item.question, "user");
+      appendMessage(item.answer, "bot");
+    });
+  }
+  function pushMessageToSession(question, answer, chat_id) {
+    const chatHistory =
+      JSON.parse(sessionStorage.getItem("chatHistory")) || [];
+    const newEntry = { question, answer };
+    chatHistory.push(newEntry);
+    sessionStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+    sessionStorage.setItem("currentChatId", chat_id);
+  }
+  function loadConvToOpenAIJson() {
+    const chatHistory =
+      JSON.parse(sessionStorage.getItem("chatHistory")) || [];
+    let user_history = [];
+    chatHistory.forEach((item) => {
+      user_history.push({ role: "user", content: item.question });
+      user_history.push({ role: "assistant", content: item.answer });
+    });
+    return user_history;
+  }
+</script>
