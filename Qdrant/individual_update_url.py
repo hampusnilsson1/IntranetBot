@@ -10,12 +10,12 @@ from process_item import process_item
 
 
 # Setup Cookies
-load_dotenv("COOKIE.env")
+load_dotenv("../data/COOKIE.env")
 COOKIE_NAME = os.getenv("COOKIE_NAME")
 COOKIE_VALUE = os.getenv("COOKIE_VALUE")
 
 # Setup Logging
-log_file = "update_logg.txt"
+log_file = "../data/update_logg.txt"
 
 logging.basicConfig(
     filename=log_file,
@@ -32,7 +32,7 @@ logging.getLogger("").addHandler(console)
 
 
 # Load API Keys
-load_dotenv(dotenv_path="API_KEYS.env")
+load_dotenv(dotenv_path="../data/API_KEYS.env")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")
 
 # Qdrant Constants And Setup

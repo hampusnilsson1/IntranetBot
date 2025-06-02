@@ -18,11 +18,11 @@ from individual_update_url import update_url
 import time
 
 # Load environment variables
-load_dotenv("COOKIE.env")
+load_dotenv("../data/COOKIE.env")
 COOKIE_NAME = os.getenv("COOKIE_NAME")
 COOKIE_VALUE = os.getenv("COOKIE_VALUE")
 
-load_dotenv(dotenv_path="API_KEYS.env")
+load_dotenv(dotenv_path="../data/API_KEYS.env")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
 # Setup Qdrant

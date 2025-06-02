@@ -18,7 +18,7 @@ SLEEP_TIME = 2
 EMBEDDING_MODEL = "text-embedding-3-large"
 
 # Setup Openai
-load_dotenv(dotenv_path="API_KEYS.env")
+load_dotenv(dotenv_path="../data/API_KEYS.env")
 openai_api_key = os.getenv("OPENAI_API_KEY")
 openai.api_key = openai_api_key
 

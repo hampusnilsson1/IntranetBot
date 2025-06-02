@@ -295,7 +295,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
                 message_api_url, json=message_data, headers=headers, params=params
             )
 
-            if message_response.status_code != 200:
+            if message_response.status_code > 299:
                 print(
                     "Fel vid skickande av svaret i API:n. Hela request: ",
                     message_api_url,
