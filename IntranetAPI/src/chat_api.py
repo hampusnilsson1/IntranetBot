@@ -15,6 +15,9 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from asgiref.wsgi import WsgiToAsgi
 
+from individual_update_url import update_url
+from individual_update_url import remove_qdrant_data
+
 api_keys_path = "../data/API_KEYS.env"
 
 
@@ -376,5 +379,60 @@ def generate():
     return response
 
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=3034)
+# Load Update Key
+UPDATE_API_KEY = load_api_key("UPDATE_API_KEY")
+
+
+# Update Qdrant Datapoints (Currently not allowing pdf inputs)
+@app.route("/update-qdrant", methods=["POST"])
+def update_qdrant():
+    try:
+        data = request.get_json()
+        if "api_key" not in data or data["api_key"] != UPDATE_API_KEY:
+            return jsonify({"error": "Invalid or missing API key"}), 401
+        if not data or "url" not in data:
+            return jsonify({"error": "URL is required"}), 400
+
+        url = data["url"]
+
+        result = update_url(url)
+
+        return (
+            jsonify(
+                {
+                    "message": "Successfully updated Qdrant",
+                    "result": f"Cost: {result} SEK",
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Remove Qdrant datapoints linked to URL
+@app.route("/remove-qdrant", methods=["POST"])
+def remove_qdrant_url():
+    try:
+        data = request.get_json()
+        if "api_key" not in data or data["api_key"] != UPDATE_API_KEY:
+            return jsonify({"error": "Invalid or missing API key"}), 401
+        if not data or "url" not in data:
+            return jsonify({"error": "URL is required"}), 400
+
+        url = data["url"]
+        response = remove_qdrant_data(url)
+
+        return (
+            jsonify(
+                {
+                    "message": "Successfully removed URL from Qdrant",
+                    "result": str(response),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

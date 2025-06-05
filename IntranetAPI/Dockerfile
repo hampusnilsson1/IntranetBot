@@ -1,21 +1,28 @@
-FROM python:3.11-alpine
+FROM python:3.12-bookworm
 
-# Ange arbetskatalogen som /app
+# Set working directory to /app
 WORKDIR /app
 
-# Kopiera beroenden och installera dem
+# Set environment variable
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
+
+# Copy dependencies and install them
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Kopiera hela projektet till containern
+# Install Playwright browsers and dependencies
+RUN pip install playwright==1.51.0 && \
+    playwright install --with-deps
+
+# Copy the entire project to the container
 COPY . .
 
-# Byt arbetskatalog till src, där Python-skriptet finns
+# Change working directory to src, where the Python script is located
 WORKDIR /app/src
 
-# Exponera port 3003
+# Expose port 3034
 EXPOSE 3034
 
-# Starta Python-skriptet
+# Start the Python script
 CMD ["uvicorn", "chat_api:asgi_app", "--host", "0.0.0.0", "--port", "3034"]
 

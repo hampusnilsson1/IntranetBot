@@ -8,3 +8,7 @@ flask-cors
 flask-limiter
 uvicorn
 asgiref
+beautifulsoup4
+pdfplumber
+tzdata
+playwright
