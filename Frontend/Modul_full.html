@@ -1,118 +1,22 @@
-<!DOCTYPE html>
-<html lang="sv">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Chattruta</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
-    <style>
-      * {
-        font-family: "Montserrat", Arial, sans-serif;
+<style>
+      *{
+        font-family: Montserrat, Arial, sans-serif;
       }
 
       *:focus {
         outline: none;
       }
-      #open-chat-btn {
-        z-index: 1;
-        cursor: pointer;
-        position: fixed;
-        bottom: 10px;
-        right: 10px;
-        width: 60px;
-        height: 60px;
-        background-color: rgb(62, 63, 91);
-        color: white;
-        border-radius: 50%;
-        box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
-        transition: all 0.125s ease-in-out;
-      }
-      #open-chat-btn:hover {
-        transform: translateY(-1px) scale(1.05) rotate(7deg);
-      }
-      #open-chat-btn:hover svg {
-        transform: translate(-47%, -50%);
-        transition: all 0.125s ease-in-out;
-      }
-      .chat-btn-open {
-        opacity: 1;
-      }
-      .chat-btn-closed {
-        transform: translateY(5px);
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      #open-chat-btn svg {
-        display: block;
-        margin: auto;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-47%, -50%) rotate(0deg);
-      }
 
       #chat-container {
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        margin: 8px;
         display: flex;
         flex-direction: column;
-        height: 70dvh;
+        height: 75vh;
+        min-height: 350px;
+        max-height: 95vh;
         width: 100%;
-        max-width: 420px;
-        min-width: 379px;
+        min-width: 320px;
         box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
         border-radius: 4px;
-        transition: all 0.3s ease-in-out;
-      }
-      .chat-open {
-        opacity: 1;
-      }
-      .chat-closed {
-        transform: translateY(50px);
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      #chat-header {
-        background-color: #3d405b;
-        height: 60px;
-        padding: 0 20px;
-        display: flex;
-        border-radius: 4px 4px 0 0;
-        cursor: pointer;
-        transition: all 0.125s ease;
-      }
-      #chat-header:hover {
-        background-color: rgb(71, 73, 102);
-      }
-      #chat-header:hover .close-chat-btn {
-        transform: scale(1.05);
-        transition: all 0.125s ease;
-      }
-      #chat-header p {
-        font-size: 16px;
-        color: white;
-        margin: auto 0;
-      }
-      .close-chat-btn {
-        background: none;
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-        width: 35px;
-        height: 35px;
-        margin: auto 0 auto auto;
-      }
-      .close-chat-btn svg {
-        position: relative;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
       }
 
       #messages {
@@ -120,7 +24,6 @@
         padding: 20px;
         overflow-y: auto;
         background-color: #fff;
-        box-shadow: inset 0 10px 8px -10px rgba(0, 0, 0, 0.253);
       }
 
       .message-wrapper {
@@ -137,7 +40,7 @@
         justify-content: flex-end;
       }
       .message {
-        padding: 12px 12px 5px 12px;
+        padding: 12px;
         border-radius: 10px;
         max-width: 65%;
         word-wrap: break-word;
@@ -167,8 +70,7 @@
       }
 
       .user .message {
-        background-color: #607ebe;
-
+        background-color: rgb(15, 140, 157);
         color: white;
       }
 
@@ -177,11 +79,11 @@
         color: black;
       }
       .message p {
-        margin-bottom: 8px;
+        margin-bottom: 5px;
       }
 
       #clear-chat {
-        background-color: #e2e2e2;
+        background-color: #c7c7c785;
         border: none;
         cursor: pointer;
         padding: 8px;
@@ -190,11 +92,11 @@
         min-width: 37px;
       }
       #clear-chat:hover {
-        background-color: #dadada;
+        background-color: #c7c7c7;
         transition: all 0.125s ease;
       }
       #clear-chat:active {
-        background-color: #cecece;
+        background-color: #bdbdbd;
       }
       #clear-chat svg {
         display: block;
@@ -204,128 +106,65 @@
       #input-area {
         display: flex;
         padding: 10px;
-        background-color: #eeeeee;
+        background-color: #eaeaea;
         border-radius: 0 0 4px 4px;
+        align-items: center;
       }
 
       #input {
-        flex: 1;
+        flex: 1 1 160px;
+        min-width: 60px;
+        max-width: 100%;
         padding: 10px;
         border: none;
         border-radius: 4px;
         font-size: 16px;
+        flex-shrink: 1;
       }
 
       #send-button {
         margin-left: 10px;
         padding: 10px 20px;
         border: none;
-        background-color: #607ebe;
+        background-color: rgb(15, 140, 157);
         color: white;
         font-size: 16px;
+        display: flex;
+        justify-content: center;
         border-radius: 4px;
         cursor: pointer;
         transition: all 0.125s ease;
+        min-width: 60px;
+      }
+      @media (max-width: 367px) {
+        #send-button {
+          padding: 10px 12px;
+
+        }
       }
 
       #send-button:hover {
-        background-color: #5773b1;
+        background-color: rgb(13, 125, 139);
+
       }
       #send-button:active {
-        background-color: #4e6aa5;
+        background-color: rgb(11, 110, 121);
       }
     </style>
-  </head>
-  <body>
-    <div id="open-chat-btn">
-      <svg
-        height="40px"
-        width="40px"
-        version="1.1"
-        id="_x32_"
-        xmlns="http://www.w3.org/2000/svg"
-        xmlns:xlink="http://www.w3.org/1999/xlink"
-        viewBox="0 0 512 512"
-        xml:space="preserve"
-        fill="#ffffff"
-        stroke="#ffffff"
-      >
-        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-        <g
-          id="SVGRepo_tracerCarrier"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        ></g>
-        <g id="SVGRepo_iconCarrier">
-          <style type="text/css">
-            .st0 {
-              fill: #ffffff;
-            }
-          </style>
-          <g>
-            <path
-              class="st0"
-              d="M396.138,85.295c-13.172-25.037-33.795-45.898-59.342-61.03C311.26,9.2,280.435,0.001,246.98,0.001 c-41.238-0.102-75.5,10.642-101.359,25.521c-25.962,14.826-37.156,32.088-37.156,32.088c-4.363,3.786-6.824,9.294-6.721,15.056 c0.118,5.77,2.775,11.186,7.273,14.784l35.933,28.78c7.324,5.864,17.806,5.644,24.875-0.518c0,0,4.414-7.978,18.247-15.88 c13.91-7.85,31.945-14.173,58.908-14.258c23.517-0.051,44.022,8.725,58.016,20.717c6.952,5.941,12.145,12.594,15.328,18.68 c3.208,6.136,4.379,11.5,4.363,15.574c-0.068,13.766-2.742,22.77-6.603,30.442c-2.945,5.729-6.789,10.813-11.738,15.744 c-7.384,7.384-17.398,14.207-28.634,20.479c-11.245,6.348-23.365,11.932-35.612,18.68c-13.978,7.74-28.77,18.858-39.701,35.544 c-5.449,8.249-9.71,17.686-12.416,27.641c-2.742,9.964-3.98,20.412-3.98,31.071c0,11.372,0,20.708,0,20.708 c0,10.719,8.69,19.41,19.41,19.41h46.762c10.719,0,19.41-8.691,19.41-19.41c0,0,0-9.336,0-20.708c0-4.107,0.467-6.755,0.917-8.436 c0.773-2.512,1.206-3.14,2.47-4.668c1.29-1.452,3.895-3.674,8.698-6.331c7.019-3.946,18.298-9.276,31.07-16.176 c19.121-10.456,42.367-24.646,61.972-48.062c9.752-11.686,18.374-25.758,24.323-41.968c6.001-16.21,9.242-34.431,9.226-53.96 C410.243,120.761,404.879,101.971,396.138,85.295z"
-            ></path>
-            <path
-              class="st0"
-              d="M228.809,406.44c-29.152,0-52.788,23.644-52.788,52.788c0,29.136,23.637,52.772,52.788,52.772 c29.136,0,52.763-23.636,52.763-52.772C281.572,430.084,257.945,406.44,228.809,406.44z"
-            ></path>
-          </g>
-        </g>
-      </svg>
-    </div>
-    <div id="chat-container">
-      <div id="chat-header">
-        <p>Intranet Assistent</p>
-        <button class="close-chat-btn">
-          <svg
-            width="35px"
-            height="35px"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            stroke="#ffffff"
-          >
-            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-            <g
-              id="SVGRepo_tracerCarrier"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            ></g>
-            <g id="SVGRepo_iconCarrier">
-              <path
-                d="M5.70711 9.71069C5.31658 10.1012 5.31658 10.7344 5.70711 11.1249L10.5993 16.0123C11.3805 16.7927 12.6463 16.7924 13.4271 16.0117L18.3174 11.1213C18.708 10.7308 18.708 10.0976 18.3174 9.70708C17.9269 9.31655 17.2937 9.31655 16.9032 9.70708L12.7176 13.8927C12.3271 14.2833 11.6939 14.2832 11.3034 13.8927L7.12132 9.71069C6.7308 9.32016 6.09763 9.32016 5.70711 9.71069Z"
-                fill="#ffffff"
-              ></path>
-            </g>
-          </svg>
-        </button>
-      </div>
+
+<div id="chat-container">
       <div id="messages"></div>
       <div id="input-area">
         <button id="clear-chat">
-          <svg width="25" height="25" viewBox="0 0 20 20">
-            <path
-              fill="none"
-              stroke="#000"
-              d="M18.65,1.68 C18.41,1.45 18.109,1.33 17.81,1.33 C17.499,1.33 17.209,1.45 16.98,1.68 L8.92,9.76 L8,12.33 L10.55,11.41 L18.651,3.34 C19.12,2.87 19.12,2.15 18.65,1.68 L18.65,1.68 L18.65,1.68 Z"
-            ></path>
-            <polyline
-              fill="none"
-              stroke="#000"
-              points="16.5 8.482 16.5 18.5 3.5 18.5 3.5 1.5 14.211 1.5"
-            ></polyline>
-          </svg>
-        </button>
+          <svg width="25" height="25" viewBox="0 0 20 20"><path fill="none" stroke="#000" d="M18.65,1.68 C18.41,1.45 18.109,1.33 17.81,1.33 C17.499,1.33 17.209,1.45 16.98,1.68 L8.92,9.76 L8,12.33 L10.55,11.41 L18.651,3.34 C19.12,2.87 19.12,2.15 18.65,1.68 L18.65,1.68 L18.65,1.68 Z"></path><polyline fill="none" stroke="#000" points="16.5 8.482 16.5 18.5 3.5 18.5 3.5 1.5 14.211 1.5"></polyline></svg>
+        </button></svg></button>
         <input type="text" id="input" placeholder="Skriv ett meddelande..." />
         <button id="send-button">Skicka</button>
       </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
     <script>
-      const open_chat = document.getElementById("open-chat-btn");
-      const chat_header = document.getElementById("chat-header");
       const input = document.getElementById("input");
       const messages = document.getElementById("messages");
       const sendButton = document.getElementById("send-button");
@@ -337,20 +176,6 @@
 
       loadChatFromSession();
 
-      function toggleChat() {
-        const chat_container = document.getElementById("chat-container");
-        chat_container.classList.toggle("chat-open");
-        chat_container.classList.toggle("chat-closed");
-        const open_btn = document.getElementById("open-chat-btn");
-        open_btn.classList.toggle("chat-btn-closed");
-
-        const isOpen = chat_container.classList.contains("chat-open");
-        sessionStorage.setItem("chatOpen", isOpen ? "true" : "false");
-      }
-
-      open_chat.addEventListener("click", toggleChat);
-      chat_header.addEventListener("click", toggleChat);
-
       function appendMessage(text, sender) {
         const wrapper = document.createElement("div");
         wrapper.classList.add("message-wrapper", sender);
@@ -360,7 +185,7 @@
         updateBotMessage(message, text);
 
         wrapper.appendChild(message);
-
+        
         if (sender === "user") {
           const userName = document.createElement("p");
           userName.classList.add("user-name");
@@ -371,7 +196,7 @@
           const botName = document.createElement("p");
           botName.classList.add("bot-name");
           botName.classList.add("name");
-          botName.textContent = "Intranet Assistent";
+          botName.textContent = "Intranet Bot";
           messages.append(botName);
         }
         messages.appendChild(wrapper);
@@ -395,6 +220,7 @@
           }
         }
       }
+      
 
       sendButton.addEventListener("click", sendMessage);
       input.addEventListener("keydown", function (e) {
@@ -536,11 +362,10 @@
         scrollToBottom();
       }
 
-      document
-        .getElementById("clear-chat")
-        .addEventListener("click", function () {
-          clearChat();
-        });
+      document.getElementById("clear-chat")
+      .addEventListener("click", function () {
+        clearChat();
+      });
 
       function clearChat() {
         sessionStorage.removeItem("chatHistory");
@@ -555,7 +380,7 @@
           "bot"
         );
         activateUserInput(true);
-      }
+      } 
 
       function scrollToBottom() {
         const messageContainer = document.getElementById("messages");
@@ -588,27 +413,6 @@
           appendMessage(item.question, "user");
           appendMessage(item.answer, "bot");
         });
-
-        // Load chat state from sessionStorage
-        const chatContainer = document.getElementById("chat-container");
-        const openChatBtn = document.getElementById("open-chat-btn");
-        const prevBtnTransition = openChatBtn.style.transition;
-        const prevContainerTransition = chatContainer.style.transition;
-        openChatBtn.style.transition = "none";
-        chatContainer.style.transition = "none";
-
-        if (sessionStorage.getItem("chatOpen") === "true") {
-          chatContainer.classList.add("chat-open");
-          openChatBtn.classList.add("chat-btn-closed");
-        } else {
-          chatContainer.classList.add("chat-closed");
-        }
-
-        // Force reflow and restore transitions
-        void chatContainer.offsetWidth;
-        void openChatBtn.offsetWidth;
-        chatContainer.style.transition = prevContainerTransition;
-        openChatBtn.style.transition = prevBtnTransition;
       }
 
       function pushMessageToSession(question, answer, chat_id) {
@@ -632,5 +436,3 @@
         return user_history;
       }
     </script>
-  </body>
-</html>
