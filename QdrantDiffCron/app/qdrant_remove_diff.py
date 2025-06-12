@@ -6,19 +6,10 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
-import smtplib
-from email.message import EmailMessage
-
 # Load environment variables
 load_dotenv(dotenv_path="/app/data/API_KEYS.env")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")
-
-load_dotenv(dotenv_path="/app/data/EMAIL_INFO.env")
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-EMAIL_TO = os.getenv("EMAIL_TO")
-EMAIL_HOST = os.getenv("EMAIL_HOST")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+ping_key = os.getenv("HEALTHCHECKS_KEY")
 
 load_dotenv(dotenv_path="/app/data/COOKIE.env")
 COOKIE_NAME = os.getenv("COOKIE_NAME")
@@ -129,36 +120,26 @@ def remove_web_sitemap_url_diff(force=False):
                 print(
                     "För många URL:er skiljer sig från sitemap, vänligen kontrollera."
                 )
-                send_alert_email(len(missing_urls), "Intranet Webb")
+                requests.post(
+                    f"https://healthchecks.utvecklingfalkenberg.se/ping/{ping_key}/intern-qdrant-diff-remove/fail",
+                    data=f"Evolution URL Difference Amount= {len(missing_urls)}, Handle manually!",
+                    timeout=10,
+                )
                 return
             print("URL:er som finns i Qdrant men inte i sitemap:")
             for url in missing_urls:
                 print(url)
             print("Tas bort från Qdrant...")
             remove_qdrant_urls(missing_urls)
+            requests.get(
+                f"https://healthchecks.utvecklingfalkenberg.se/ping/{ping_key}/intern-qdrant-diff-remove",
+                timeout=10,
+            )
         else:
             print("Alla Webb URL:er i Qdrant finns också i sitemap.")
 
     except Exception as e:
         print(f"Ett fel inträffade: {e}")
-
-
-def send_alert_email(count, urltype="Intranet Webb"):
-    msg = EmailMessage()
-    msg.set_content(
-        f"Antalet URL:er för {urltype} har överskridit 50 (nuvarande antal: {count}). Inga gamla datapunkter har raderats från Qdrant. Du måste hantera detta manuellt."
-    )
-    msg["Subject"] = "Varning: För många URL:er - Intranet Backend"
-    msg["From"] = EMAIL_USER
-    msg["To"] = EMAIL_TO
-
-    try:
-        with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as smtp:
-            smtp.login(EMAIL_USER, EMAIL_PASSWORD)
-            smtp.send_message(msg)
-            print("Mail skickat.")
-    except Exception as e:
-        print("Kunde inte skicka mail:", e)
 
 
 def remove_qdrant_urls(urls):
