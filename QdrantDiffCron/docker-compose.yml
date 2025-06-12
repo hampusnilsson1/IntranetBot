@@ -1,0 +1,11 @@
+services:
+  qdrant:
+    build: .
+    container_name: remove_diff
+    ports:
+      - "3036:3036"
+    volumes:
+      - ./app:/app # Scripts
+      - ../data:/app/data # Data
+    environment:
+      - PYTHONUNBUFFERED=1
