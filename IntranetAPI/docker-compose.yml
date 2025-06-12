@@ -7,4 +7,5 @@ services:
     ports:
       - "3034:3034"
     volumes:
+      - ./src:/app/src # Scripts
       - ../data:/app/data
