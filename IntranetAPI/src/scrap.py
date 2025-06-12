@@ -113,7 +113,6 @@ def scrap_site(page_url, cookie_name, cookie_value):
                 re.IGNORECASE,
             ),
         )
-        print(f"Found both 'alla dokument' and .pdf {pdf_links}")
         for link in pdf_links:
             pdf_url = link["href"]
             if pdf_url.startswith(

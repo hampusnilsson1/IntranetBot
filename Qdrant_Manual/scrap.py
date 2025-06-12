@@ -30,6 +30,10 @@ UNWANTED_CLASSES = [
 ]
 UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie", "assistant"]
 
+load_dotenv("../data/COOKIE.env")
+COOKIE_NAME = os.getenv("COOKIE_NAME")
+COOKIE_VALUE = os.getenv("COOKIE_VALUE")
+
 
 def scrap_site(page_url, cookie_name, cookie_value):
     # Playwright Test
@@ -103,10 +107,18 @@ def scrap_site(page_url, cookie_name, cookie_value):
 
         # Site Pdfs
         pdf_links = soup.find_all(
-            "a", href=re.compile(r"(\.pdf$|/file$)", re.IGNORECASE)
+            "a",
+            href=re.compile(
+                r"(^/alla-dokument/|^https://intranet\.falkenberg\.se/alla-dokument/|\.pdf$)",
+                re.IGNORECASE,
+            ),
         )
         for link in pdf_links:
             pdf_url = link["href"]
+            if pdf_url.startswith(
+                "https://intranet.falkenberg.se/alla-dokument/"
+            ) or pdf_url.startswith("/alla-dokument/"):
+                pdf_url = pdf_url + "/file"
             if pdf_url.startswith("/"):
                 pdf_url = "https://intranet.falkenberg.se" + pdf_url
             pdf_text = scrap_pdf(pdf_url=pdf_url)
@@ -124,7 +136,12 @@ def scrap_site(page_url, cookie_name, cookie_value):
 def scrap_pdf(pdf_url):
     pdf_file_path = "temp.pdf"
     try:
-        response = requests.get(pdf_url)
+        if pdf_url.startswith("https://intranet.falkenberg.se"):
+            response = requests.get(
+                pdf_url, cookies={COOKIE_NAME: COOKIE_VALUE}, timeout=10
+            )
+        else:
+            response = requests.get(pdf_url)
         response.raise_for_status()
 
         with open(pdf_file_path, "wb") as f:
