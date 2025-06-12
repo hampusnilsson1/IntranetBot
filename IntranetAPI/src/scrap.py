@@ -102,11 +102,13 @@ def scrap_site(page_url, cookie_name, cookie_value):
         results.append({"url": page_url, "title": title, "texts": texts})
 
         # Site Pdfs
-        pdf_links = soup.find_all("a", href=re.compile(r"\.pdf$", re.IGNORECASE))
+        pdf_links = soup.find_all(
+            "a", href=re.compile(r"(\.pdf$|/file$)", re.IGNORECASE)
+        )
         for link in pdf_links:
             pdf_url = link["href"]
             if pdf_url.startswith("/"):
-                pdf_url = "https://kommun.falkenberg.se" + pdf_url
+                pdf_url = "https://intranet.falkenberg.se" + pdf_url
             pdf_text = scrap_pdf(pdf_url=pdf_url)
             results.append(
                 {
