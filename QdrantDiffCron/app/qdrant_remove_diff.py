@@ -3,6 +3,9 @@ import requests
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
@@ -122,7 +125,7 @@ def remove_web_sitemap_url_diff(force=False):
                 )
                 requests.post(
                     f"https://healthchecks.utvecklingfalkenberg.se/ping/{ping_key}/intern-qdrant-diff-remove/fail",
-                    data=f"Evolution URL Difference Amount= {len(missing_urls)}, Handle manually!",
+                    data=f"Webb URL Difference Amount= {len(missing_urls)}, Handle manually!",
                     timeout=10,
                 )
                 return
@@ -137,6 +140,10 @@ def remove_web_sitemap_url_diff(force=False):
             )
         else:
             print("Alla Webb URL:er i Qdrant finns också i sitemap.")
+            requests.get(
+                f"https://healthchecks.utvecklingfalkenberg.se/ping/{ping_key}/intern-qdrant-diff-remove",
+                timeout=10,
+            )
 
     except Exception as e:
         print(f"Ett fel inträffade: {e}")
@@ -159,6 +166,9 @@ def remove_qdrant_urls(urls):
 
 # Main function
 def main():
+    utc_time = datetime.now(timezone.utc).replace(microsecond=0)
+    current_date_time = utc_time.astimezone(ZoneInfo("Europe/Stockholm"))
+    print(f"Datetime: {current_date_time}")
     print("Tar bort gamla Webbsitemap URL:er...")
     remove_web_sitemap_url_diff(force=False)  # True to force removal
 
