@@ -9,6 +9,8 @@ import os
 
 import requests
 
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
+
 UNWANTED_TAGS = [  # Due to site having no main element and inconsistency
     "header",
     "footer",
@@ -123,14 +125,15 @@ def scrap_site(page_url, cookie_name, cookie_value):
                 pdf_url = pdf_url + "/file"
 
             pdf_text = scrap_pdf(pdf_url=pdf_url)
-            results.append(
-                {
-                    "url": pdf_url,
-                    "title": link.text.strip() or "No title",
-                    "texts": pdf_text,
-                    "source_url": page_url,
-                }
-            )
+            if pdf_text:
+                results.append(
+                    {
+                        "url": pdf_url,
+                        "title": link.text.strip() or "No title",
+                        "texts": pdf_text,
+                        "source_url": page_url,
+                    }
+                )
         return results
 
 
@@ -160,8 +163,14 @@ def scrap_pdf(pdf_url):
             text_content = []
             for para in doc.paragraphs:
                 text_content.append(para.text)
+
+            # Eventuellt ta bort?
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        text_content.append(cell.text)
             return " ".join(text_content) if text_content else "No text found in DOCX"
-        else:
+        elif "pdf" in content_type:
             # Hantera pdf-fil
             with open(pdf_file_path, "wb") as f:
                 f.write(response.content)
@@ -173,6 +182,8 @@ def scrap_pdf(pdf_url):
                     if page_text:
                         text_content.append(page_text)
             return " ".join(text_content) if text_content else "No text found in PDF"
+        else:
+            return
     except (requests.exceptions.RequestException, Exception) as e:
         logging.info(f"Error fetching or processing PDF from {pdf_url}: {str(e)}")
         return "Error fetching or processing PDF"

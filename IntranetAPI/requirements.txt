@@ -9,7 +9,7 @@ flask-limiter
 uvicorn
 asgiref
 beautifulsoup4
-pdfplumber
+pdfplumber==0.11.7
 tzdata
 playwright
 python-docx
