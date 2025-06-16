@@ -12,3 +12,4 @@ beautifulsoup4
 pdfplumber
 tzdata
 playwright
+python-docx

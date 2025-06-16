@@ -1,6 +1,7 @@
 import logging
 import re
 from bs4 import BeautifulSoup
+import docx
 import pdfplumber
 from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
@@ -115,12 +116,12 @@ def scrap_site(page_url, cookie_name, cookie_value):
         )
         for link in pdf_links:
             pdf_url = link["href"]
-            if pdf_url.startswith(
-                "https://intranet.falkenberg.se/alla-dokument/"
-            ) or pdf_url.startswith("/alla-dokument/"):
-                pdf_url = pdf_url + "/file"
             if pdf_url.startswith("/"):
                 pdf_url = "https://intranet.falkenberg.se" + pdf_url
+
+            if pdf_url.startswith("https://intranet.falkenberg.se/alla-dokument/"):
+                pdf_url = pdf_url + "/file"
+
             pdf_text = scrap_pdf(pdf_url=pdf_url)
             results.append(
                 {
@@ -144,16 +145,34 @@ def scrap_pdf(pdf_url):
             response = requests.get(pdf_url)
         response.raise_for_status()
 
-        with open(pdf_file_path, "wb") as f:
-            f.write(response.content)
+        content_type = response.headers.get("Content-Type", "").lower()
+        if (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            in content_type
+            or "application/msword" in content_type
+            or "application/octet-stream" in content_type
+        ):
+            # Hantera docx-fil
+            with open(pdf_file_path, "wb") as f:
+                f.write(response.content)
 
-        text_content = []
-        with pdfplumber.open(pdf_file_path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text_content.append(page_text)
-        return " ".join(text_content) if text_content else "No text found in PDF"
+            doc = docx.Document(pdf_file_path)
+            text_content = []
+            for para in doc.paragraphs:
+                text_content.append(para.text)
+            return " ".join(text_content) if text_content else "No text found in DOCX"
+        else:
+            # Hantera pdf-fil
+            with open(pdf_file_path, "wb") as f:
+                f.write(response.content)
+
+            text_content = []
+            with pdfplumber.open(pdf_file_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_content.append(page_text)
+            return " ".join(text_content) if text_content else "No text found in PDF"
     except (requests.exceptions.RequestException, Exception) as e:
         logging.info(f"Error fetching or processing PDF from {pdf_url}: {str(e)}")
         return "Error fetching or processing PDF"
