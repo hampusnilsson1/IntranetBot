@@ -138,7 +138,7 @@ def scrap_site(page_url, cookie_name, cookie_value):
 
 
 def scrap_pdf(pdf_url):
-    pdf_file_path = "temp.pdf"
+    file_path = "temp.pdf"
     try:
         if pdf_url.startswith("https://intranet.falkenberg.se"):
             response = requests.get(
@@ -156,10 +156,11 @@ def scrap_pdf(pdf_url):
             or "application/octet-stream" in content_type
         ):
             # Hantera docx-fil
-            with open(pdf_file_path, "wb") as f:
+            file_path = "temp.docx"
+            with open(file_path, "wb") as f:
                 f.write(response.content)
 
-            doc = docx.Document(pdf_file_path)
+            doc = docx.Document(file_path)
             text_content = []
             for para in doc.paragraphs:
                 text_content.append(para.text)
@@ -172,11 +173,11 @@ def scrap_pdf(pdf_url):
             return " ".join(text_content) if text_content else "No text found in DOCX"
         elif "pdf" in content_type:
             # Hantera pdf-fil
-            with open(pdf_file_path, "wb") as f:
+            with open(file_path, "wb") as f:
                 f.write(response.content)
 
             text_content = []
-            with pdfplumber.open(pdf_file_path) as pdf:
+            with pdfplumber.open(file_path) as pdf:
                 for page in pdf.pages:
                     page_text = page.extract_text()
                     if page_text:
@@ -188,5 +189,5 @@ def scrap_pdf(pdf_url):
         logging.info(f"Error fetching or processing PDF from {pdf_url}: {str(e)}")
         return "Error fetching or processing PDF"
     finally:
-        if os.path.exists(pdf_file_path):
-            os.remove(pdf_file_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
