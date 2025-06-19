@@ -163,14 +163,15 @@ def scrap_pdf(pdf_url):
             doc = docx.Document(file_path)
             text_content = []
             for para in doc.paragraphs:
-                text_content.append(para.text)
+                cleaned_text = re.sub(r"[\.\-_]{3,}", "", para.text)
+                text_content.append(cleaned_text)
 
-            # Eventuellt ta bort?
             for table in doc.tables:
                 for row in table.rows:
                     for cell in row.cells:
-                        text_content.append(cell.text)
-            return " ".join(text_content) if text_content else "No text found in DOCX"
+                        cleaned_text = re.sub(r"[\.\-_]{3,}", "", cell.text)
+                        text_content.append(cleaned_text)
+            return " ".join(text_content) if text_content else None
         elif "pdf" in content_type:
             # Hantera pdf-fil
             with open(file_path, "wb") as f:
@@ -181,13 +182,14 @@ def scrap_pdf(pdf_url):
                 for page in pdf.pages:
                     page_text = page.extract_text()
                     if page_text:
-                        text_content.append(page_text)
-            return " ".join(text_content) if text_content else "No text found in PDF"
+                        cleaned_text = re.sub(r"[\.\-_]{3,}", "", page_text)
+                        text_content.append(cleaned_text)
+            return " ".join(text_content) if text_content else None
         else:
             return
     except (requests.exceptions.RequestException, Exception) as e:
-        logging.info(f"Error fetching or processing PDF from {pdf_url}: {str(e)}")
-        return "Error fetching or processing PDF"
+        logging.info(f"Error fetching or processing PDF/DOCX from {pdf_url}: {str(e)}")
+        return
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)

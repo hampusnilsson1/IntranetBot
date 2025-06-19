@@ -55,8 +55,9 @@ if response.status_code == 200:
 
     urls_nolastmod = []
     urls_new = []
-
     urls_update = []
+
+    urls_added = []
     for url in root.findall("ns:url", namespace):
         loc = url.find("ns:loc", namespace).text
         lastmod_elem = url.find("ns:lastmod", namespace)
@@ -116,27 +117,30 @@ if response.status_code == 200:
             print(f"Datapoint not found for {loc}")
             urls_new.append(loc)
 
-    print(
-        f"{len(urls_update)} URLs that are in need of update. Adding these to the list.."
+    add_update = input(
+        f"{len(urls_update)} URLs that are in need of update. Do you want to add these? (y/n) "
     )
+    if add_update.lower() == "y":
+        urls_added.extend(urls_update)
+
     add_new = input(
         f"{len(urls_new)} URLs that do not exist in Qdrant. Do you want to add these? (y/n) "
     )
     if add_new.lower() == "y":
-        urls_update.extend(urls_new)
+        urls_added.extend(urls_new)
 
     add_nolastmod = input(
         f"{len(urls_nolastmod)} URLs without a date in sitemap, would use like to add these? (y/n) "
     )
     if add_nolastmod.lower() == "y":
-        urls_update.extend(urls_nolastmod)
+        urls_added.extend(urls_nolastmod)
 
-    print(f"{len(urls_update)} URLS to update or add to Qdrant")
+    print(f"{len(urls_added)} URLS to update or add to Qdrant")
     start_update = input("Start Update? (y/n) ")
     if start_update.lower() == "y":
         point_count = 0
-        for url in urls_update:
+        for url in urls_added:
             point_count += 1
             print(f"Updating {url}")
-            print(f"{point_count} / {len(urls_update)}")
+            print(f"{point_count} / {len(urls_added)}")
             update_url(url)
