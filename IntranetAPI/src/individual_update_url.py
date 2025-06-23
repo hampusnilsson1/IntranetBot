@@ -94,7 +94,6 @@ def remove_qdrant_data(url):
 # Main
 def update_url(url):
     page_chunks = scrap_site(url, COOKIE_NAME, COOKIE_VALUE)
-    remove_qdrant_data(url)
     point_count = 0
     total_update_cost_SEK = 0
     for chunk in page_chunks:
