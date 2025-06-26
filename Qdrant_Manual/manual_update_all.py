@@ -117,6 +117,7 @@ if response.status_code == 200:
             print(f"Datapoint not found for {loc}")
             urls_new.append(loc)
 
+    print(urls_update)
     add_update = input(
         f"{len(urls_update)} URLs that are in need of update. Do you want to add these? (y/n) "
     )

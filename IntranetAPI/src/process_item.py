@@ -29,12 +29,12 @@ def process_item(item, qdrant_client, COLLECTION_NAME="IntranetFalkenbergHemsida
     logging.info("Dividing to chunks")
     chunks = get_item_chunks(item)
     logging.info(f"Getting chunks in need of update, url: {item["url"]}")
-    db_hashes = get_db_chunk_hashes(item, qdrant_client, COLLECTION_NAME)
+    db_hashes = get_db_chunk_hashes(chunks, qdrant_client, COLLECTION_NAME)
     new_chunks = get_new_chunks(chunks, db_hashes)
-    logging.info("Embedding chunks")
-    if new_chunks == None:
+    if new_chunks == None or len(new_chunks) == 0:
         logging.info("No Update needed for this item.")
         return 0
+    logging.info("Embedding chunks")
     embeddings, chunk_cost_SEK = create_embeddings(new_chunks)
     logging.info("Removing old chunks")
     remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME)
@@ -80,33 +80,45 @@ def chunk_text(text, chunk_size, overlap):
 
 
 # 2 Get DB Chunk Hashes
-def get_db_chunk_hashes(item, qdrant_client, COLLECTION_NAME):
+def get_db_chunk_hashes(chunks, qdrant_client, COLLECTION_NAME):
     db_hashes = []
+    chunk_source_url = chunks[0]["source_url"] if "source_url" in chunks[0] else None
+    url = chunks[0]["url"]
+    
+    logging.info(f"{url},{chunks[0]["chunk_hash"]}")
 
     # if Site 
     url_filter = models.Filter(
         must=[
             models.IsEmptyCondition(is_empty=models.PayloadField(key="source_url")),
-            models.FieldCondition(key="url", match=models.MatchValue(value=item["url"])),
+            models.FieldCondition(key="url", match=models.MatchValue(value=url)),
         ]
     )
 
     # if Linked Document
     link_filter = None
-    if "source_url" in item:
+    if chunk_source_url:
         link_filter = models.Filter(
             must=[
                 models.FieldCondition(
-                    key="source_url", match=models.MatchValue(value=item["source_url"])
+                    key="source_url", match=models.MatchValue(value=chunk_source_url)
                 ),
-                models.FieldCondition(key="url", match=models.MatchValue(value=item["url"]))
+                models.FieldCondition(key="url", match=models.MatchValue(value=url))
             ]
         )
-
+        
+    # Hash filter
+    chunk_hashes = [chunk["chunk_hash"] for chunk in chunks]
+    hash_filter = models.Filter(
+        must=[
+            models.HasIdCondition(has_id=chunk_hashes),
+        ],
+    )
+    
     if link_filter:
-        qdrant_filter = models.Filter(should=[url_filter, link_filter])
+        qdrant_filter = models.Filter(should=[url_filter, link_filter, hash_filter])
     else:
-        qdrant_filter = url_filter
+        qdrant_filter = models.Filter(should=[url_filter, hash_filter])
 
     db_points, _ = qdrant_client.scroll(
         collection_name=COLLECTION_NAME, scroll_filter=qdrant_filter, limit=3000
@@ -128,18 +140,28 @@ def get_db_chunk_hashes(item, qdrant_client, COLLECTION_NAME):
     return db_hashes
 
 
-# 3 Compare new and old chunk hashes
+# 3 Compare new and old chunk hashes( IF new_chunks contain a new chunk hash/document it will be added to the update)
 def get_new_chunks(new_chunks, db_hashes):
-    new_chunk_hashes = {chunk["chunk_hash"] for chunk in new_chunks}
+    if not new_chunks:
+        logging.info("Empty input data - no chunks to update")
+        return
+    
     db_hashes_set = {db_point["id"] for db_point in db_hashes}
-
-    new_hashes_only = new_chunk_hashes - db_hashes_set
-
-    urls_to_update = {chunk["url"] for chunk in new_chunks if chunk["chunk_hash"] in new_hashes_only}
-
-    chunks_to_update = [chunk for chunk in new_chunks if chunk["url"] in urls_to_update]
-    logging.info(f"Chunks to update: {chunks_to_update}")
-    return chunks_to_update if chunks_to_update else None
+    
+    urls_needing_update = {
+        chunk["url"] for chunk in new_chunks 
+        if chunk["chunk_hash"] not in db_hashes_set
+    }
+    
+    chunks_to_update = [
+        chunk for chunk in new_chunks 
+        if chunk["url"] in urls_needing_update
+    ]
+    
+    logging.info(f"Found {len(urls_needing_update)} URLs needing update with {len(chunks_to_update)} total chunks")
+    logging.info(f"URLs to update: {urls_needing_update}")
+    
+    return chunks_to_update
 
 
 # 4 Create Embeddings
