@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import openai
 from qdrant_client import QdrantClient
+from qdrant_client import models
 
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
@@ -64,15 +65,42 @@ def generate_embeddings(text):  # Generate embedding of the text
 
 
 def search_collection(
-    qdrant_client, collection_name, user_query_embedding
-):  # Searches for the 10 most similar documents
-    response = qdrant_client.search(
+    qdrant_client: QdrantClient,
+    collection_name,
+    user_query_embedding,
+    keyword_filter=None,
+):
+    if keyword_filter is None:
+        response = qdrant_client.search(
+            collection_name=collection_name,
+            query_vector=user_query_embedding,
+            limit=5,
+            with_payload=True,
+        )
+        return response
+
+    # Get results from vector search and filtered scroll
+    vector_results = qdrant_client.search(
         collection_name=collection_name,
         query_vector=user_query_embedding,
-        limit=10,
+        limit=5,
         with_payload=True,
     )
-    return response
+
+    filtered_results, _ = qdrant_client.scroll(
+        collection_name=collection_name, scroll_filter=keyword_filter, limit=3
+    )
+
+    filtered_ids = set(point.id for point in filtered_results)
+    combined_results = list(filtered_results)
+
+    for r in vector_results:
+        if r.id not in filtered_ids:
+            combined_results.append(r)
+        if len(combined_results) >= 5:
+            break
+
+    return combined_results[:5]
 
 
 # OpenAI Token Counter
@@ -159,15 +187,32 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     user_input_combo = user_input_combo[:MAX_INPUT_CHAR]
 
     # Generate a relevant question that we can search for information in QDRANT
-    query_instruction = f"""Du ska generera en kort, koncis och relevant fråga baserat på användarens senaste fråga och eventuellt tidigare frågor om FBG kommun.
+    query_instruction = f"""Du ska generera en kort, koncis och relevant fråga baserat på användarens senaste fråga och eventuellt tidigare frågor om FBG kommuns intranet.
 
         Tidigare frågor: "{user_input_combo}" (första frågan i konversationen först).
 
-        Generera en fråga som:
-        1. Fokuserar på användarens senaste fråga, men tar hänsyn till tidigare frågor om de är relevanta.
-        2. Om tidigare frågor är relevanta, inkludera endast då deras kontext i den nya frågan; annars fokusera enbart på den senaste frågan.
-        3. Frågan ska vara optimerad för att söka information i en inbäddad databas.
-        
+        Instruktioner:
+        1. Formulera en ny fråga som fokuserar på användarens senaste fråga.
+        2. Om tidigare frågor är relevanta till senaste frågan, inkludera endast då deras kontext i den nya frågan; annars ignorera dem.
+        3. Frågan ska vara optimerad för sökning i en inbäddad databas.
+        4. Avsluta alltid frågan med ett kommatecken(,) - detta används som separator i detta CSV-format.
+        5. Efter frågan skriv de viktigaste nyckelorden (max 3st), separerade med kommatecken.
+        6. Generera endast nyckelord om de förekommer i frågan och innehåller något av följande:
+        - Namn på personer
+        - Namn på platser, byggnader eller organisationer
+        - Datum (exakta eller formella datum/tidsangivelser)
+        - Adresser eller vägnamn
+
+        Format:
+        Fråga,Keyword1,Keyword2,Keyword3 osv.
+
+        Exempel:
+        "Vem är Hampus Nilsson?",Hampus Nilsson
+        "Var ligger Tångaskolan?",Tångaskolan  
+        "När är Kulturnatta 2025?",Kulturnatta,2025  
+        "Vem kan jag kontakta angående bygglov?",  
+
+        Generera endast en enda rad i CSV-format - Ingen yttligare text eller förklaring.
     """
     query_input = [
         {"role": "system", "content": query_instruction},
@@ -180,16 +225,41 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     query_text_out = openai_query["choices"][0]["message"]["content"]
     question_cost += calculate_cost(query_text_out, is_input=False)
 
-    user_embedding = generate_embeddings(query_text_out)
-    question_cost += calculate_cost(query_text_out, "text-embedding-3-large")
+    # Split the CSV string into question and keywords
+    csv_parts = [part.strip() for part in query_text_out.split(",") if part.strip()]
+    question = csv_parts[0] if csv_parts else ""
+    keywords = csv_parts[1:] if len(csv_parts) > 1 else []
+    print(f"Fråga att söka med: {question}")
+    print(f"Nyckelord: {keywords}")
 
-    search_results = search_collection(QDRANT_CLIENT, COLLECTION_NAME, user_embedding)
+    if len(keywords) > 0:
+        keyword_filter = models.Filter(
+            should=[
+                models.FieldCondition(
+                    key="chunk",
+                    match=models.MatchText(text=keyword),
+                )
+                for keyword in keywords
+            ]
+        )
+    else:
+        keyword_filter = None
+
+    user_embedding = generate_embeddings(question)
+    question_cost += calculate_cost(question, "text-embedding-3-large")
+
+    search_results = search_collection(
+        QDRANT_CLIENT,
+        COLLECTION_NAME,
+        user_embedding,
+        keyword_filter=keyword_filter,
+    )
     similar_texts = [
         {
             "chunk": result.payload["chunk"],
             "title": result.payload["title"],
             "url": result.payload["url"],
-            "score": result.score,
+            "score": getattr(result, "score", 0.55),
             "id": result.id,
         }
         for result in search_results
