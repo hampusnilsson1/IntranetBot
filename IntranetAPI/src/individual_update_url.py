@@ -54,43 +54,6 @@ except Exception:
     )
 
 
-# Remove Datapoints connected to URL
-def remove_qdrant_data(url):
-    # Remove url datapoints
-    default_url_filter = models.Filter(
-        must=[
-            models.IsEmptyCondition(is_empty=models.PayloadField(key="source_url")),
-            models.FieldCondition(key="url", match=models.MatchValue(value=url)),
-        ]
-    )
-
-    # Remove pdf datapoints linked to url
-    pdf_link_filter = models.Filter(
-        must_not=[
-            models.IsEmptyCondition(is_empty=models.PayloadField(key="source_url"))
-        ],
-        must=[
-            models.FieldCondition(key="source_url", match=models.MatchValue(value=url)),
-        ],
-    )
-
-    # Datapoint needs one filter true
-    qdrant_filter = models.Filter(should=[default_url_filter, pdf_link_filter])
-
-    points_selector = models.FilterSelector(filter=qdrant_filter)
-
-    # Get datapoints before deletion to return them
-    deleted_points = qdrant_client.scroll(
-        collection_name=COLLECTION_NAME, scroll_filter=qdrant_filter, limit=1000
-    )
-
-    qdrant_client.delete(
-        collection_name=COLLECTION_NAME, points_selector=points_selector
-    )
-
-    return deleted_points
-
-
 # Main
 def update_url(url):
     page_chunks = scrap_site(url, COOKIE_NAME, COOKIE_VALUE)

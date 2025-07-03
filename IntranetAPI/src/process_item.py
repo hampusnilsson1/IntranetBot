@@ -9,7 +9,7 @@ import openai
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from qdrant_client.http.models import VectorParams, Distance, PointStruct
+from qdrant_client.http.models import PointStruct
 
 from essential_methods import calculate_cost_sek, generate_uuid
 
@@ -25,19 +25,22 @@ openai.api_key = openai_api_key
 
 
 # Main, Process Item and upload to Qqdrant
-def process_item(item, qdrant_client, COLLECTION_NAME="IntranetFalkenbergHemsida"):
+def process_item(
+    item, qdrant_client: QdrantClient, COLLECTION_NAME="IntranetFalkenbergHemsida"
+):
     logging.info("Dividing to chunks")
     chunks = get_item_chunks(item)
     logging.info(f"Getting chunks in need of update, url: {item['url']}")
     db_hashes = get_db_chunk_hashes(chunks, qdrant_client, COLLECTION_NAME)
     new_chunks = get_new_chunks(chunks, db_hashes)
+    old_urls = get_old_urls(chunks, db_hashes)
     if new_chunks == None or len(new_chunks) == 0:
         logging.info("No Update needed for this item.")
         return 0
     logging.info("Embedding chunks")
     embeddings, chunk_cost_SEK = create_embeddings(new_chunks)
     logging.info("Removing old chunks")
-    remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME)
+    remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME, old_urls)
     logging.info("Uploading Embeddings")
     upsert_to_qdrant(new_chunks, embeddings, qdrant_client, COLLECTION_NAME)
     logging.info("Processing Done")
@@ -80,7 +83,7 @@ def chunk_text(text, chunk_size, overlap):
 
 
 # 2 Get DB Chunk Hashes
-def get_db_chunk_hashes(chunks, qdrant_client, COLLECTION_NAME):
+def get_db_chunk_hashes(chunks, qdrant_client: QdrantClient, COLLECTION_NAME):
     db_hashes = []
     chunk_source_url = chunks[0]["source_url"] if "source_url" in chunks[0] else None
     url = chunks[0]["url"]
@@ -164,6 +167,16 @@ def get_new_chunks(new_chunks, db_hashes):
     return chunks_to_update
 
 
+# 3.5 Get pdfs/documents that no longer is linked on page
+def get_old_urls(new_chunks, db_hashes):
+    db_urls_set = {db_point["url"] for db_point in db_hashes}
+    new_urls_set = {chunk["url"] for chunk in new_chunks}
+
+    removed_urls = db_urls_set - new_urls_set
+
+    return removed_urls if removed_urls else None
+
+
 # 4 Create Embeddings
 def create_embeddings(chunks):
     texts = [chunk["chunk"] for chunk in chunks]
@@ -183,9 +196,13 @@ def create_embeddings(chunks):
 
 
 # 5 Remove Old Datapoints
-def remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME):
+def remove_old_datapoints(
+    new_chunks, qdrant_client: QdrantClient, COLLECTION_NAME, old_urls=None
+):
     # Remove url datapoints
     urls = [chunk["url"] for chunk in new_chunks]
+    if old_urls:
+        urls.extend(old_urls)
 
     url_filter = models.Filter(
         must=[models.FieldCondition(key="url", match=models.MatchAny(any=urls))]
@@ -200,7 +217,7 @@ def remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME):
 
 
 # 6 Upsert Embeddings to Qdrant
-def upsert_to_qdrant(chunks, embeddings, qdrant_client, COLLECTION_NAME):
+def upsert_to_qdrant(chunks, embeddings, qdrant_client: QdrantClient, COLLECTION_NAME):
     points = []
     for i, chunk in enumerate(chunks):
         utc_time = datetime.now(timezone.utc).replace(microsecond=0)

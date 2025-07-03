@@ -17,7 +17,6 @@ from flask_limiter import Limiter
 from asgiref.wsgi import WsgiToAsgi
 
 from individual_update_url import update_url
-from individual_update_url import remove_qdrant_data
 
 api_keys_path = "../data/API_KEYS.env"
 
@@ -415,6 +414,27 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     return generate
 
 
+def remove_qdrant(url):
+    qdrant_filter = models.Filter(
+        should=[
+            models.FieldCondition(key="url", match=models.MatchValue(value=url)),
+            models.FieldCondition(key="source_url", match=models.MatchValue(value=url)),
+        ]
+    )
+
+    points_selector = models.FilterSelector(filter=qdrant_filter)
+
+    deleted_points = QDRANT_CLIENT.scroll(
+        collection_name=COLLECTION_NAME, scroll_filter=qdrant_filter, limit=1000
+    )
+
+    QDRANT_CLIENT.delete(
+        collection_name=COLLECTION_NAME, points_selector=points_selector
+    )
+
+    return deleted_points
+
+
 app = Flask(__name__)
 CORS(app)
 # Limit the API request amount
@@ -492,7 +512,7 @@ def remove_qdrant_url():
             return jsonify({"error": "URL is required"}), 400
 
         url = data["url"]
-        response = remove_qdrant_data(url)
+        response = remove_qdrant(url)
 
         return (
             jsonify(
