@@ -39,7 +39,7 @@ qdrant_api_key = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = "https://qdrant.utvecklingfalkenberg.se"
 QDRANT_PORT = 443
 VECTOR_SIZE = 3072
-COLLECTION_NAME = "IntranetFalkenbergHemsida"
+COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 
 qdrant_client = qdrant_client.QdrantClient(
     url=QDRANT_URL, port=QDRANT_PORT, https=True, api_key=qdrant_api_key

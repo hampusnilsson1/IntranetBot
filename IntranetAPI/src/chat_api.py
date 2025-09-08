@@ -35,7 +35,7 @@ def load_api_key(key_variable):
 
 
 # Qdrant
-COLLECTION_NAME = "IntranetFalkenbergHemsida"
+COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 QDRANT_API_KEY = load_api_key("QDRANT_API_KEY")
 QDRANT_URL = "https://qdrant.utvecklingfalkenberg.se"
 QDRANT_CLIENT = QdrantClient(
@@ -209,7 +209,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         "Vem är Hampus Nilsson?",Hampus Nilsson
         "Var ligger Tångaskolan?",Tångaskolan  
         "När är Kulturnatta 2025?",Kulturnatta,2025  
-        "Vem kan jag kontakta angående bygglov?",  
+        "Vem kan jag kontakta angående bygglov?",Bygglov, Kontakt 
 
         Generera endast en enda rad i CSV-format - Ingen yttligare text eller förklaring.
     """
@@ -235,7 +235,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         keyword_filter = models.Filter(
             should=[
                 models.FieldCondition(
-                    key="chunk",
+                    key="content",
                     match=models.MatchText(text=keyword),
                 )
                 for keyword in keywords
@@ -253,12 +253,13 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         user_embedding,
         keyword_filter=keyword_filter,
     )
+    print(f"Search results: {search_results}")
     similar_texts = [
         {
-            "chunk": result.payload["chunk"],
-            "title": result.payload["title"],
-            "url": result.payload["url"],
-            "score": getattr(result, "score", 0.55),
+            "chunk": result.payload["content"],
+            "title": result.payload["metadata"]["title"],
+            "url": result.payload["metadata"]["url"],
+            "score": getattr(result, "score", "Keyword Match"),
             "id": result.id,
         }
         for result in search_results
@@ -417,8 +418,12 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
 def remove_qdrant(url):
     qdrant_filter = models.Filter(
         should=[
-            models.FieldCondition(key="url", match=models.MatchValue(value=url)),
-            models.FieldCondition(key="source_url", match=models.MatchValue(value=url)),
+            models.FieldCondition(
+                key="metadata.url", match=models.MatchValue(value=url)
+            ),
+            models.FieldCondition(
+                key="metadata.source_url", match=models.MatchValue(value=url)
+            ),
         ]
     )
 
