@@ -33,10 +33,6 @@ UNWANTED_CLASSES = [
 ]
 UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie", "assistant"]
 
-load_dotenv("../data/COOKIE.env")
-COOKIE_NAME = os.getenv("COOKIE_NAME")
-COOKIE_VALUE = os.getenv("COOKIE_VALUE")
-
 
 def scrap_site(page_url, cookie_name, cookie_value):
     # Playwright Test
@@ -124,7 +120,9 @@ def scrap_site(page_url, cookie_name, cookie_value):
             if pdf_url.startswith("https://intranet.falkenberg.se/alla-dokument/"):
                 pdf_url = pdf_url + "/file"
 
-            pdf_text = scrap_pdf(pdf_url=pdf_url)
+            pdf_text = scrap_pdf(
+                pdf_url=pdf_url, cookie_name=cookie_name, cookie_value=cookie_value
+            )
             if pdf_text:
                 results.append(
                     {
@@ -137,12 +135,12 @@ def scrap_site(page_url, cookie_name, cookie_value):
         return results
 
 
-def scrap_pdf(pdf_url):
+def scrap_pdf(pdf_url, cookie_name, cookie_value):
     file_path = "temp.pdf"
     try:
         if pdf_url.startswith("https://intranet.falkenberg.se"):
             response = requests.get(
-                pdf_url, cookies={COOKIE_NAME: COOKIE_VALUE}, timeout=10
+                pdf_url, cookies={cookie_name: cookie_value}, timeout=10
             )
         else:
             response = requests.get(pdf_url)

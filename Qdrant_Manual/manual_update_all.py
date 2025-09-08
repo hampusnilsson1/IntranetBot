@@ -29,7 +29,7 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = "https://qdrant.utvecklingfalkenberg.se"
 QDRANT_PORT = 443
 VECTOR_SIZE = 3072
-COLLECTION_NAME = "IntranetFalkenbergHemsida"
+COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 
 qdrant_client = QdrantClient(
     url=QDRANT_URL, port=QDRANT_PORT, https=True, api_key=QDRANT_API_KEY, timeout=15
@@ -90,7 +90,7 @@ if response.status_code == 200:
             continue
         # Check if lastmod is updated after last update
         filter_condition = Filter(
-            must=[FieldCondition(key="url", match=MatchValue(value=loc))]
+            must=[FieldCondition(key="metadata.url", match=MatchValue(value=loc))]
         )
         result = qdrant_client.scroll(
             collection_name=COLLECTION_NAME,
@@ -100,7 +100,8 @@ if response.status_code == 200:
         # If data point exists
         if result[0]:
             datapoint = result[0][0]
-            update_date_str = datapoint.payload.get("update_date")
+            metadata = datapoint.payload.get("metadata", {})
+            update_date_str = metadata.get("update_date")
             if update_date_str is not None:
                 try:
                     update_date = datetime.strptime(

@@ -39,7 +39,7 @@ qdrant_api_key = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = "https://qdrant.utvecklingfalkenberg.se"
 QDRANT_PORT = 443
 VECTOR_SIZE = 3072
-COLLECTION_NAME = "IntranetFalkenbergHemsida"
+COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 
 qdrant_client = qdrant_client.QdrantClient(
     url=QDRANT_URL, port=QDRANT_PORT, https=True, api_key=qdrant_api_key
@@ -54,40 +54,9 @@ except Exception:
     )
 
 
-# Remove Datapoints connected to URL
-def remove_qdrant_data(url):
-    # Remove url datapoints
-    default_url_filter = models.Filter(
-        must=[
-            models.IsEmptyCondition(is_empty=models.PayloadField(key="source_url")),
-            models.FieldCondition(key="url", match=models.MatchValue(value=url)),
-        ]
-    )
-
-    # Remove pdf datapoints linked to url
-    pdf_link_filter = models.Filter(
-        must_not=[
-            models.IsEmptyCondition(is_empty=models.PayloadField(key="source_url"))
-        ],
-        must=[
-            models.FieldCondition(key="source_url", match=models.MatchValue(value=url)),
-        ],
-    )
-
-    # Datapoint needs one filter true
-    qdrant_filter = models.Filter(should=[default_url_filter, pdf_link_filter])
-
-    points_selector = models.FilterSelector(filter=qdrant_filter)
-
-    qdrant_client.delete(
-        collection_name=COLLECTION_NAME, points_selector=points_selector
-    )
-
-
 # Main
 def update_url(url):
     page_chunks = scrap_site(url, COOKIE_NAME, COOKIE_VALUE)
-    remove_qdrant_data(url)
     point_count = 0
     total_update_cost_SEK = 0
     for chunk in page_chunks:
@@ -98,3 +67,4 @@ def update_url(url):
         )
 
     logging.info(f"Total URL Update Cost = {total_update_cost_SEK} SEK")
+    return total_update_cost_SEK
