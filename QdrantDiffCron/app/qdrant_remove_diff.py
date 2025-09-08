@@ -20,7 +20,7 @@ COOKIE_VALUE = os.getenv("COOKIE_VALUE")
 
 QDRANT_URL = "https://qdrant.utvecklingfalkenberg.se/"
 QDRANT_PORT = 443
-COLLECTION_NAME = "IntranetFalkenbergHemsida"
+COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 
 qdrant_client = QdrantClient(
     url=QDRANT_URL, port=QDRANT_PORT, https=True, api_key=qdrant_api_key
@@ -152,8 +152,8 @@ def remove_web_sitemap_url_diff(force=False):
 def remove_qdrant_urls(urls):
     qdrant_filter = models.Filter(
         should=[
-            models.FieldCondition(key="url", match=models.MatchAny(any=urls)),
-            models.FieldCondition(key="source_url", match=models.MatchAny(any=urls)),
+            models.FieldCondition(key="metadata.url", match=models.MatchAny(any=urls)),
+            models.FieldCondition(key="metadata.source_url", match=models.MatchAny(any=urls)),
         ]
     )
 
