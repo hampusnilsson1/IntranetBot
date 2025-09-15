@@ -17,6 +17,7 @@ from flask_limiter import Limiter
 from asgiref.wsgi import WsgiToAsgi
 
 from individual_update_url import update_url
+from essential_methods import calculate_cost
 
 api_keys_path = "../data/API_KEYS.env"
 
@@ -100,37 +101,6 @@ def search_collection(
             break
 
     return combined_results[:5]
-
-
-# OpenAI Token Counter
-def count_tokens(text, model="gpt-4o"):
-
-    encoding = tiktoken.encoding_for_model(model)
-
-    tokens = encoding.encode(text)
-    num_tokens = len(tokens)
-    return num_tokens
-
-
-# Token Cost Calculator
-def calculate_cost(text, model="gpt-4o", is_input=True):
-    # Get the number of tokens in the text
-    num_tokens = count_tokens(text, model)
-
-    # Calculation per 1000 tokens USD
-    if model == "gpt-4o":
-        if is_input:
-            cost_per_1000_tokens = 0.0025  # USD
-        else:
-            cost_per_1000_tokens = 0.0100  # USD
-    elif model == "text-embedding-3-large":
-        cost_per_1000_tokens = 0.00013  # USD
-    else:
-        raise ValueError("Unsupported model")
-
-    # Calculate text cost
-    cost = (num_tokens / 1000) * cost_per_1000_tokens
-    return cost
 
 
 def directus_get_cost(chat_id):
@@ -219,10 +189,10 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     ]
 
     openai_query = openai.ChatCompletion.create(model=GPT_MODEL, messages=query_input)
-    question_cost += calculate_cost(json.dumps(query_input))
+    question_cost += calculate_cost(json.dumps(query_input), model="gpt-4o")
 
     query_text_out = openai_query["choices"][0]["message"]["content"]
-    question_cost += calculate_cost(query_text_out, is_input=False)
+    question_cost += calculate_cost(query_text_out, is_input=False, model="gpt-4o")
 
     # Split the CSV string into question and keywords
     csv_parts = [part.strip() for part in query_text_out.split(",") if part.strip()]
@@ -245,7 +215,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         keyword_filter = None
 
     user_embedding = generate_embeddings(question)
-    question_cost += calculate_cost(question, "text-embedding-3-large")
+    question_cost += calculate_cost(question)
 
     search_results = search_collection(
         QDRANT_CLIENT,
@@ -315,7 +285,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         messages.append({"role": role, "content": content})
 
     messages.append({"role": "user", "content": user_input})
-    question_cost += calculate_cost(json.dumps(messages))
+    question_cost += calculate_cost(json.dumps(messages), model="gpt-4o")
 
     if not chat_id or not user_history:
         print("Hittade inte chat_id eller user_history så skapas ny chatt", chat_id)

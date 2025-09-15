@@ -11,7 +11,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import PointStruct
 
-from essential_methods import calculate_cost_sek, generate_uuid
+from essential_methods import calculate_cost, generate_uuid
 
 # Batch Constants
 BATCH_SIZE = 1000
@@ -192,7 +192,7 @@ def create_embeddings(chunks):
         batch_texts = texts[batch_start : batch_start + BATCH_SIZE]
         response = openai.Embedding.create(model=EMBEDDING_MODEL, input=batch_texts)
 
-        batch_cost_sek = calculate_cost_sek(batch_texts)
+        batch_cost_sek = calculate_cost(batch_texts) * 10  # Ish SEK conversion
         total_cost_sek += batch_cost_sek
 
         batch_embeddings = [e["embedding"] for e in response["data"]]

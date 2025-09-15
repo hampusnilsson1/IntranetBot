@@ -12,8 +12,9 @@ def generate_uuid(text):
 
 # Token Count/Calc
 def count_tokens(texts, model="text-embedding-3-large"):
-
     encoding = tiktoken.encoding_for_model(model)
+    if isinstance(texts, str):
+        texts = [texts]
     total_tokens = 0
     for text in texts:
         tokens = encoding.encode(text)
@@ -21,16 +22,21 @@ def count_tokens(texts, model="text-embedding-3-large"):
     return total_tokens
 
 
-def calculate_cost_sek(texts, model="text-embedding-3-large"):
-    SEK_per_USD = 11
+def calculate_cost(texts, model="text-embedding-3-large", is_input=True):
+    # Get the number of tokens in the text
     num_tokens = count_tokens(texts, model)
 
-    # Kostnadsberäkningar per 1000 tokens
-    if model == "text-embedding-3-large":
+    # Calculation per 1000 tokens USD
+    if model == "gpt-4o":
+        if is_input:
+            cost_per_1000_tokens = 0.0025  # USD
+        else:
+            cost_per_1000_tokens = 0.0100  # USD
+    elif model == "text-embedding-3-large":
         cost_per_1000_tokens = 0.00013  # USD
     else:
         raise ValueError("Unsupported model")
 
-    # Beräkna kostnaden
-    cost = ((num_tokens / 1000) * cost_per_1000_tokens) * SEK_per_USD
+    # Calculate text cost
+    cost = (num_tokens / 1000) * cost_per_1000_tokens
     return cost
