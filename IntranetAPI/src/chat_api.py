@@ -168,18 +168,20 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         5. Efter frågan skriv de viktigaste nyckelorden (max 3st), separerade med kommatecken.
         6. Generera endast nyckelord om de förekommer i frågan och innehåller något av följande:
         - Namn på personer
-        - Namn på platser, byggnader eller organisationer
+        - Exakta titlar på dokument, policys, riktlinjer eller liknande
+        - Namn på platser, byggnader eller organisationer, eller andra liknande sökbara entiteter
         - Datum (exakta eller formella datum/tidsangivelser)
         - Adresser eller vägnamn
+        - Specifika begrepp eller termer som är centrala för frågan.
 
         Format:
         Fråga,Keyword1,Keyword2,Keyword3 osv.
 
         Exempel:
         "Vem är Hampus Nilsson?",Hampus Nilsson
-        "Var ligger Tångaskolan?",Tångaskolan  
-        "När är Kulturnatta 2025?",Kulturnatta,2025  
-        "Vem kan jag kontakta angående bygglov?",Bygglov, Kontakt 
+        "Var ligger Tångaskolan?",Tångaskolan
+        "När är Kulturnatta 2025?",Kulturnatta,2025
+        "Vem kan jag kontakta angående bygglov?",Bygglov,Kontakt
 
         Generera endast en enda rad i CSV-format - Ingen yttligare text eller förklaring.
     """
