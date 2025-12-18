@@ -1,6 +1,6 @@
 *.env
 /__pycache__
-update_logg.txt
 /Qdrant/__pycache__
 /IntranetAPI/src/__pycache__
 /Qdrant_Manual/__pycache__
+/data
