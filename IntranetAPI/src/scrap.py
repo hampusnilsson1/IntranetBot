@@ -38,7 +38,7 @@ UNWANTED_IDS = ["tm-header", "tm-footer", "tm-sidebar", "cookie", "assistant"]
 
 def scrap_site(page_url, cookie_name, cookie_value):
     # Playwright Test
-    with sync_playwright() as p:  # "playwright install" Needed in Dockerfile in future
+    with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context()
 
@@ -64,13 +64,19 @@ def scrap_site(page_url, cookie_name, cookie_value):
 
         # Check if page was loaded successfully
         current_url = page.url
-        if current_url.startswith("https://idp.falkenberg.se/saml/authenticate"):
+        if "idp.falkenberg.se" in current_url:
             logger.info("Error: Invalid cookie. Redirected to login page.")
             browser.close()
             return None
 
-        # Grab the page content and format it
         content = page.content()
+        if "idp.falkenberg.se" in content and "SAMLRequest" in content:
+            logger.error(
+                "CRITICAL: Cookie is INVALID! Detected SAML Login Form in response."
+            )
+            browser.close()
+            return None
+
         browser.close()
 
         soup = BeautifulSoup(content, "html.parser")
