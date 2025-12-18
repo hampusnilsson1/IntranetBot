@@ -8,10 +8,12 @@ from dotenv import load_dotenv
 import openai
 
 from qdrant_client import QdrantClient
-from qdrant_client.http import models
-from qdrant_client.http.models import PointStruct
+from qdrant_client import models
 
 from essential_methods import calculate_cost, generate_uuid
+
+# Setup Logging
+logger = logging.getLogger(__name__)
 
 # Batch Constants
 BATCH_SIZE = 1000
@@ -26,24 +28,26 @@ openai.api_key = openai_api_key
 
 # Main, Process Item and upload to Qqdrant
 def process_item(
-    item, qdrant_client: QdrantClient, COLLECTION_NAME="IntranetFalkenbergHemsida"
+    item, qdrant_client: QdrantClient, COLLECTION_NAME="IntranetFalkenbergHemsida_RAG"
 ):
-    logging.info("Dividing to chunks")
+    logger.info("Dividing to chunks")
     chunks = get_item_chunks(item)
-    logging.info(f"Getting chunks in need of update, url: {item['url']}")
+
+    logger.info(f"Getting chunks in need of update, url: {item['url']}")
     db_hashes = get_db_chunk_hashes(chunks, qdrant_client, COLLECTION_NAME)
     new_chunks = get_new_chunks(chunks, db_hashes)
     old_urls = get_old_urls(chunks, db_hashes)
+
     if new_chunks == None or len(new_chunks) == 0:
-        logging.info("No Update needed for this item.")
+        logger.info("No Update needed for this item.")
         return 0
-    logging.info("Embedding chunks")
+    logger.info("Embedding chunks")
     embeddings, chunk_cost_SEK = create_embeddings(new_chunks)
-    logging.info("Removing old chunks")
+    logger.info("Removing old chunks")
     remove_old_datapoints(new_chunks, qdrant_client, COLLECTION_NAME, old_urls)
-    logging.info("Uploading Embeddings")
+    logger.info("Uploading Embeddings")
     upsert_to_qdrant(new_chunks, embeddings, qdrant_client, COLLECTION_NAME)
-    logging.info("Processing Done")
+    logger.info("Processing Done")
     return chunk_cost_SEK
 
 
@@ -88,7 +92,7 @@ def get_db_chunk_hashes(chunks, qdrant_client: QdrantClient, COLLECTION_NAME):
     chunk_source_url = chunks[0]["source_url"] if "source_url" in chunks[0] else None
     url = chunks[0]["url"]
 
-    logging.info(f"{url},{chunks[0]['chunk_hash']}")
+    logger.info(f"{url},{chunks[0]['chunk_hash']}")
 
     # if Site
     url_filter = models.Filter(
@@ -142,9 +146,7 @@ def get_db_chunk_hashes(chunks, qdrant_client: QdrantClient, COLLECTION_NAME):
             db_hash["source_url"] = point.payload.get("metadata")["source_url"]
         db_hashes.append(db_hash)
 
-    logging.info(
-        f"Database Hashes found for url: {db_hashes}, {len(db_hashes)} stycken"
-    )
+    logger.info(f"Database Hashes found for url: {db_hashes}, {len(db_hashes)} stycken")
 
     return db_hashes
 
@@ -152,7 +154,7 @@ def get_db_chunk_hashes(chunks, qdrant_client: QdrantClient, COLLECTION_NAME):
 # 3 Compare new and old chunk hashes( IF new_chunks contain a new chunk hash/document it will be added to the update)
 def get_new_chunks(new_chunks, db_hashes):
     if not new_chunks:
-        logging.info("Empty input data - no chunks to update")
+        logger.info("Empty input data - no chunks to update")
         return
 
     db_hashes_set = {db_point["id"] for db_point in db_hashes}
@@ -165,10 +167,10 @@ def get_new_chunks(new_chunks, db_hashes):
         chunk for chunk in new_chunks if chunk["url"] in urls_needing_update
     ]
 
-    logging.info(
+    logger.info(
         f"Found {len(urls_needing_update)} URLs needing update with {len(chunks_to_update)} total chunks"
     )
-    logging.info(f"URLs to update: {urls_needing_update}")
+    logger.info(f"URLs to update: {urls_needing_update}")
 
     return chunks_to_update
 
@@ -210,6 +212,10 @@ def remove_old_datapoints(
     if old_urls:
         urls.extend(old_urls)
 
+    if not urls or len(urls) == 0:
+        logger.info("No OLD datapoints to remove")
+        return
+
     url_filter = models.Filter(
         must=[
             models.FieldCondition(key="metadata.url", match=models.MatchAny(any=urls))
@@ -221,7 +227,7 @@ def remove_old_datapoints(
     qdrant_client.delete(
         collection_name=COLLECTION_NAME, points_selector=points_selector
     )
-    logging.info("Removed OLD datapoints")
+    logger.info("Removed OLD datapoints")
 
 
 # 6 Upsert Embeddings to Qdrant
@@ -243,13 +249,13 @@ def upsert_to_qdrant(chunks, embeddings, qdrant_client: QdrantClient, COLLECTION
         if "source_url" in chunk:
             payload["metadata"]["source_url"] = chunk["source_url"]
 
-        point = PointStruct(
+        point = models.PointStruct(
             id=chunk["chunk_hash"], vector=embeddings[i], payload=payload
         )
 
-        logging.info(f"Chunk uppladdas: {chunk['chunk_hash']}, URL: {chunk['url']}")
+        logger.info(f"Chunk uppladdas: {chunk['chunk_hash']}, URL: {chunk['url']}")
         points.append(point)
     try:
         qdrant_client.upsert(collection_name=COLLECTION_NAME, points=points)
     except Exception as e:
-        logging.error(f"Upsert failed: {e}")
+        logger.error(f"Upsert failed: {e}")

@@ -1,21 +1,37 @@
 from datetime import datetime
+import logging
 import os
+import sys
 from dotenv import load_dotenv
 import requests
 import xml.etree.ElementTree as ET
 
 from qdrant_client import QdrantClient
-from qdrant_client.http import models
-from qdrant_client.http.models import (
-    Filter,
-    FieldCondition,
-    MatchValue,
-    VectorParams,
-    Distance,
+from qdrant_client import models
+
+from essential_methods import swedish_time
+
+# Setup Logging
+log_file = "../data/manual_update_logg.txt"
+
+root_logger = logging.getLogger()
+if root_logger.hasHandlers():
+    root_logger.handlers.clear()
+
+logging.Formatter.converter = swedish_time
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),  # Log to file
+        logging.StreamHandler(),  # Log to console
+    ],
 )
 
+logger = logging.getLogger(__name__)
+
 from individual_update_url import update_url
-import time
 
 # Load environment variables
 load_dotenv("../data/COOKIE.env")
@@ -34,17 +50,66 @@ COLLECTION_NAME = "IntranetFalkenbergHemsida_RAG"
 qdrant_client = QdrantClient(
     url=QDRANT_URL, port=QDRANT_PORT, https=True, api_key=QDRANT_API_KEY, timeout=15
 )
-try:
-    qdrant_client.get_collection(COLLECTION_NAME)
-except Exception:
-    vectors_config = VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE)
-    qdrant_client.recreate_collection(
-        collection_name=COLLECTION_NAME, vectors_config=vectors_config
+if not qdrant_client.collection_exists(collection_name=COLLECTION_NAME):
+    logger.info(
+        f"Collection {COLLECTION_NAME} not found. Creating... (Manual Update Script)"
     )
+    vectors_config = models.VectorParams(
+        size=VECTOR_SIZE, distance=models.Distance.COSINE
+    )
+    try:
+        qdrant_client.create_collection(
+            collection_name=COLLECTION_NAME, vectors_config=vectors_config
+        )
+    except Exception as e:
+        logger.error(f"Error creating collection: {e} (Manual Update Script)")
+else:
+    logger.info(
+        f"Collection {COLLECTION_NAME} exists. Proceeding.(Manual Update Script)"
+    )
+
+
+def validate_cookie_startup(url, cookie_name, cookie_value):
+    logger.info("Validating Cookie before starting...")
+    try:
+        # Changed to GET to receive the body content
+        response = requests.get(
+            url, cookies={cookie_name: cookie_value}, allow_redirects=True, timeout=10
+        )
+
+        # Check 1: Standard URL Redirect (3xx)
+        if "idp.falkenberg.se" in response.url:
+            logger.error("CRITICAL: Cookie is invalid! HTTP Redirect to Login Page.")
+            return False
+
+        content = response.text
+        if "idp.falkenberg.se" in content and "SAMLRequest" in content:
+            logger.error("CRITICAL: Cookie is invalid! Detected SAML Redirect HTML.")
+            return False
+
+        if "<?xml" not in content[:100] and "<urlset" not in content[:100]:
+            logger.error("CRITICAL: Response is not XML. Likely a login page or error.")
+            logger.debug(f"Response snippet: {content[:150]}...")
+            return False
+
+        if response.status_code == 200:
+            logger.info("Cookie is VALID.")
+            return True
+        else:
+            logger.warning(f"Cookie check returned status {response.status_code}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Failed to validate cookie: {e}")
+        return False
 
 
 # Sitemap Processing
 url = "https://intranet.falkenberg.se/index.php?option=com_jmap&view=sitemap&format=xml"
+
+if not validate_cookie_startup(url, COOKIE_NAME, COOKIE_VALUE):
+    logger.error("Exiting due to invalid cookie.")
+    sys.exit(1)
 
 response = requests.get(url, cookies={COOKIE_NAME: COOKIE_VALUE})
 urls = []
@@ -84,13 +149,17 @@ if response.status_code == 200:
             try:
                 lastmod_datetime = datetime.strptime(lastmod, "%Y-%m-%dT%H:%M:%SZ")
             except ValueError as e:
-                print(f"Wrong dateformat of lastmod {lastmod}: {e}")
+                logger.error(f"Wrong dateformat of lastmod {lastmod}: {e}")
         else:
             urls_nolastmod.append(loc)
             continue
         # Check if lastmod is updated after last update
-        filter_condition = Filter(
-            must=[FieldCondition(key="metadata.url", match=MatchValue(value=loc))]
+        filter_condition = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="metadata.url", match=models.MatchValue(value=loc)
+                )
+            ]
         )
         result = qdrant_client.scroll(
             collection_name=COLLECTION_NAME,
@@ -108,17 +177,16 @@ if response.status_code == 200:
                         update_date_str, "%Y-%m-%dT%H:%M:%S"
                     )
                 except ValueError as e:
-                    print(f"Error parsing date {update_date_str}: {e}")
+                    logger.error(f"Error parsing date {update_date_str}: {e}")
 
             # Check if the date is after the last update
             if update_date is not None and lastmod_datetime > update_date:
                 urls_update.append(loc)
 
         else:
-            print(f"Datapoint not found for {loc}")
+            logger.info(f"Datapoint not found for {loc}")
             urls_new.append(loc)
 
-    print(urls_update)
     add_update = input(
         f"{len(urls_update)} URLs that are in need of update. Do you want to add these? (y/n) "
     )
@@ -137,12 +205,15 @@ if response.status_code == 200:
     if add_nolastmod.lower() == "y":
         urls_added.extend(urls_nolastmod)
 
-    print(f"{len(urls_added)} URLS to update or add to Qdrant")
+    logger.info(f"{len(urls_added)} URLS to update or add to Qdrant")
+    if len(urls_added) == 0:
+        logger.info("No URLs to update or add. Exiting.")
+        exit()
     start_update = input("Start Update? (y/n) ")
     if start_update.lower() == "y":
         point_count = 0
         for url in urls_added:
             point_count += 1
-            print(f"Updating {url}")
-            print(f"{point_count} / {len(urls_added)}")
+            logger.info(f"Updating {url}")
+            logger.info(f"{point_count} / {len(urls_added)}")
             update_url(url)

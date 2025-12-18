@@ -2,6 +2,7 @@ import requests
 import os
 import re
 import json
+import logging
 import tiktoken
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -16,10 +17,30 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from asgiref.wsgi import WsgiToAsgi
 
+from essential_methods import swedish_time
+
+# Setup Logging
+log_file = "../data/update_logg.txt"
+
+logging.Formatter.converter = swedish_time
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),  # Log to file
+        logging.StreamHandler(),  # Log to console
+    ],
+)
+
+logger = logging.getLogger(__name__)
+
+
 from individual_update_url import update_url
 from essential_methods import calculate_cost
 
 api_keys_path = "../data/API_KEYS.env"
+cookie_path = "../data/COOKIE.env"  # Added path for cookies
 
 
 def load_api_key(key_variable):
@@ -33,6 +54,61 @@ def load_api_key(key_variable):
     raise ValueError(
         "API key was not found!, Make sure the environment variable is set."
     )
+
+
+# Load Cookie Info
+if os.path.exists(cookie_path):
+    load_dotenv(dotenv_path=cookie_path)
+    COOKIE_NAME = os.getenv("COOKIE_NAME")
+    COOKIE_VALUE = os.getenv("COOKIE_VALUE")
+else:
+    logger.warning("COOKIE.env not found. Cookie validation will be skipped.")
+    COOKIE_NAME = None
+    COOKIE_VALUE = None
+
+
+def validate_cookie_startup():
+    if not COOKIE_NAME or not COOKIE_VALUE:
+        logger.warning("Skipping cookie validation (Credentials missing).")
+        return
+
+    url = "https://intranet.falkenberg.se/start2"
+    logger.info(f"Validating Cookie against {url}...")
+
+    try:
+        # Use GET to see the body content
+        response = requests.get(
+            url, cookies={COOKIE_NAME: COOKIE_VALUE}, allow_redirects=True, timeout=10
+        )
+
+        # 1. Check URL Redirect (3xx -> Login URL)
+        if "idp.falkenberg.se" in response.url:
+            logger.error("CRITICAL: Cookie is INVALID! API redirected to Login Page.")
+            return False
+
+        # 2. Check Content Body for SAML/Login Form (The robust check)
+        content = response.text
+        if "idp.falkenberg.se" in content and "SAMLRequest" in content:
+            logger.error(
+                "CRITICAL: Cookie is INVALID! Detected SAML Login Form in response."
+            )
+            return False
+
+        if response.status_code == 200:
+            logger.info("Cookie is VALID. API started successfully.")
+            return True
+        else:
+            logger.warning(
+                f"Cookie validation returned unexpected status: {response.status_code}"
+            )
+            return False
+
+    except Exception as e:
+        logger.error(f"Failed to validate cookie during startup: {e}")
+        return False
+
+
+validate_cookie_startup()
 
 
 # Qdrant
@@ -120,10 +196,10 @@ def directus_get_cost(chat_id):
 
             return cost_usd
         else:
-            print("No data found for the given chat_id")
+            logger.warning("No data found for the given chat_id")
             return None
     else:
-        print(f"Error: {response.status_code} - {response.text}")
+        logger.error(f"Directus Cost Error: {response.status_code} - {response.text}")
         return None
 
 
@@ -200,8 +276,8 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     csv_parts = [part.strip() for part in query_text_out.split(",") if part.strip()]
     question = csv_parts[0] if csv_parts else ""
     keywords = csv_parts[1:] if len(csv_parts) > 1 else []
-    print(f"Fråga att söka med: {question}")
-    print(f"Nyckelord: {keywords}")
+    logger.info(f"Generated Question: {question}")
+    logger.info(f"Keywords: {keywords}")
 
     if len(keywords) > 0:
         keyword_filter = models.Filter(
@@ -225,21 +301,31 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         user_embedding,
         keyword_filter=keyword_filter,
     )
-    print(f"Search results: {search_results}")
-    similar_texts = [
-        {
-            "chunk": result.payload["content"],
-            "title": result.payload["metadata"]["title"],
-            "url": result.payload["metadata"]["url"],
-            "score": getattr(result, "score", "Keyword Match"),
-            "id": result.id,
-        }
-        for result in search_results
-    ]
+
+    found_ids = [res.id for res in search_results]
+    logger.info(f"Search found {len(found_ids)} results: {found_ids}")
+
+    similar_texts = []
+    for result in search_results:
+        similar_texts.append(
+            {
+                "chunk": result.payload["content"],
+                "title": result.payload["metadata"]["title"],
+                "url": result.payload["metadata"]["url"],
+                "score": getattr(result, "score", "Keyword Match"),
+                "id": result.id,
+            }
+        )
+
     # Send in current datetime so it knows
     utc_time = datetime.now(timezone.utc).replace(microsecond=0)
     current_date_time = utc_time.astimezone(ZoneInfo("Europe/Stockholm"))
     current_date_time_str = current_date_time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    doc_context = ""
+    for i, text in enumerate(similar_texts):
+        doc_context += f"Dokument:\n{text['chunk']}\nURL: {text['url']}\nLikhetsscore: {text['score']}\n\n"
+
     # Prepare the prompt for GPT-4o in Swedish
     instructions_prompt = f"""
     Du är en AI-assistent som är specialiserad på att hjälpa anställda inom Falkenbergs kommun med frågor kring kommunens intranet. 
@@ -247,30 +333,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     Du ska alltid försöka ge det mest relevanta svaret med hjälp av dokument du får tillgång till, men även vara öppen om det finns osäkerheter i informationen.
 
     Här är information som skulle kunna vara till hjälp för att hjälpa användaren kring frågan:
-    Dokument:
-    {similar_texts[0]['chunk']}
-    URL: {similar_texts[0]['url']}
-    Likhetsscore: {similar_texts[0]['score']}
-
-    Dokument:
-    {similar_texts[1]['chunk']}
-    URL: {similar_texts[1]['url']}
-    Likhetsscore: {similar_texts[1]['score']}
-    
-    Dokument:
-    {similar_texts[2]['chunk']}
-    URL: {similar_texts[2]['url']}
-    Likhetsscore: {similar_texts[2]['score']}
-    
-    Dokument:
-    {similar_texts[3]['chunk']}
-    URL: {similar_texts[3]['url']}
-    Likhetsscore: {similar_texts[3]['score']}
-    
-    Dokument:
-    {similar_texts[4]['chunk']}
-    URL: {similar_texts[4]['url']}
-    Likhetsscore: {similar_texts[4]['score']}
+    {doc_context}
 
 
     Hjälp användaren att få svar på sin fråga.
@@ -290,19 +353,17 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
     question_cost += calculate_cost(json.dumps(messages), model="gpt-4o")
 
     if not chat_id or not user_history:
-        print("Hittade inte chat_id eller user_history så skapas ny chatt", chat_id)
+        logger.info("No chat_id or history found, creating new chat.")
         chat_data = {}
         post_response = requests.post(
             chat_api_url, json=chat_data, headers=headers, params=params
         )
         if post_response.status_code != 200:
-            print("Fel vid skapande av ny chatt.")
-            print("Chat creation response:", post_response.json())
+            logger.error(f"Error creating chat: {post_response.json()}")
             chat_id = None
         else:
-            print("Chat creation response:", post_response.json())
             chat_id = post_response.json().get("data", {}).get("chat_id")
-            print("Skapat nytt id: ", chat_id)
+            logger.info(f"New chat created with ID: {chat_id}")
 
     collected_response = []
 
@@ -330,7 +391,7 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
         full_response_no_emojis = remove_emojis(full_response)
         user_input_no_emoji = remove_emojis(user_input)
         if chat_id:
-            print("Använder: ", chat_id)
+            logger.info(f"Saving message for chat_id: {chat_id}")
             message_data = {
                 "chat_id": chat_id,
                 "prompt": user_input_no_emoji,
@@ -341,12 +402,8 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
             )
 
             if message_response.status_code > 299:
-                print(
-                    "Fel vid skickande av svaret i API:n. Hela request: ",
-                    message_api_url,
-                    message_data,
-                    headers,
-                    params,
+                logger.error(
+                    f"Error sending msg to API. Full request: {message_api_url}, {message_data}, {headers}, {params}"
                 )
 
             # Get chat cost
@@ -370,24 +427,18 @@ def get_result(user_input, user_history, chat_id, MAX_INPUT_CHAR):
                 )
 
                 if response.status_code == 200:
-                    print("Directus cost_usd uppdaterad!ID:", chat_id)
-                    return jsonify({"message": "Konstnad Uppdaterad!"}), 200
+                    logger.info(f"Cost updated for ID: {chat_id}")
                 else:
-                    return (
-                        jsonify(
-                            {
-                                "error": f"Fel vid uppdatering av kostnad: {response.text}"
-                            }
-                        ),
-                        response.status_code,
-                    )
+                    logger.error(f"Error updating cost: {response.text}")
+
             except requests.exceptions.RequestException as e:
-                return jsonify({"error": f"Nätverksfel: {str(e)}"}), 500
+                logger.error(f"Network error updating cost: {str(e)}")
 
     return generate
 
 
 def remove_qdrant(url):
+    logger.info(f"Attempting to remove Qdrant points for URL: {url}")
     qdrant_filter = models.Filter(
         should=[
             models.FieldCondition(
@@ -408,7 +459,7 @@ def remove_qdrant(url):
     QDRANT_CLIENT.delete(
         collection_name=COLLECTION_NAME, points_selector=points_selector
     )
-
+    logger.info(f"Deleted points count: {len(deleted_points[0])}")
     return deleted_points
 
 
@@ -425,6 +476,7 @@ asgi_app = WsgiToAsgi(app)
 def generate():
     data = request.get_json()
     if not data or "user_input" not in data:
+        logger.warning("Generate request missing user_input")
         return jsonify({"error": "Ingen användarinput inmatad"}), 400
 
     user_input = data["user_input"]
@@ -456,11 +508,13 @@ def update_qdrant():
     try:
         data = request.get_json()
         if "api_key" not in data or data["api_key"] != UPDATE_API_KEY:
+            logger.warning("Update Qdrant unauthorized attempt")
             return jsonify({"error": "Invalid or missing API key"}), 401
         if not data or "url" not in data:
             return jsonify({"error": "URL is required"}), 400
 
         url = data["url"]
+        logger.info(f"Starting Qdrant Update for: {url}")
 
         result = update_url(url)
 
@@ -475,6 +529,7 @@ def update_qdrant():
         )
 
     except Exception as e:
+        logger.error(f"Update Qdrant Failed: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -502,4 +557,5 @@ def remove_qdrant_url():
         )
 
     except Exception as e:
+        logger.error(f"Remove Qdrant Failed: {str(e)}")
         return jsonify({"error": str(e)}), 500

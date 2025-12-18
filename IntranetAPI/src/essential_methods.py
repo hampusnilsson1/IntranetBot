@@ -1,6 +1,8 @@
 import hashlib
 import uuid
-
+import logging
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import tiktoken
 
 
@@ -40,3 +42,11 @@ def calculate_cost(texts, model="text-embedding-3-large", is_input=True):
     # Calculate text cost
     cost = (num_tokens / 1000) * cost_per_1000_tokens
     return cost
+
+
+# Swedish Timezone for logging
+def swedish_time(*args):
+    utc_dt = datetime.now(timezone.utc)
+    swe_tz = ZoneInfo("Europe/Stockholm")
+    converted = utc_dt.astimezone(swe_tz)
+    return converted.timetuple()

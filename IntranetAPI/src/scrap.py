@@ -9,7 +9,9 @@ import os
 
 import requests
 
+# Setup Logging
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
 
 UNWANTED_TAGS = [  # Due to site having no main element and inconsistency
     "header",
@@ -62,10 +64,8 @@ def scrap_site(page_url, cookie_name, cookie_value):
 
         # Check if page was loaded successfully
         current_url = page.url
-        if current_url.startswith(
-            "https://idp.falkenberg.se/saml/authenticate/samldispatchi"
-        ):
-            print("Error: Invalid cookie. Redirected to login page.")
+        if current_url.startswith("https://idp.falkenberg.se/saml/authenticate"):
+            logger.info("Error: Invalid cookie. Redirected to login page.")
             browser.close()
             return None
 

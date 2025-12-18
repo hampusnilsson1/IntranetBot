@@ -2,7 +2,7 @@ requests
 tiktoken
 python-dotenv
 openai==0.28.0
-qdrant-client==1.6.1
+qdrant-client==1.16.0
 Flask
 flask-cors
 flask-limiter
