@@ -147,21 +147,22 @@ def search_collection(
     keyword_filter=None,
 ):
     if keyword_filter is None:
-        response = qdrant_client.search(
-            collection_name=collection_name,
-            query_vector=user_query_embedding,
-            limit=5,
-            with_payload=True,
-        )
-        return response
+        response = qdrant_client.query_points(
+                collection_name=collection_name,
+                query=user_query_embedding,
+                limit=5,
+                with_payload=True,
+            )
+        return response.points if hasattr(response, 'points') else []
 
     # Get results from vector search and filtered scroll
-    vector_results = qdrant_client.search(
+    vector_result_obj = qdrant_client.query_points(
         collection_name=collection_name,
-        query_vector=user_query_embedding,
+        query=user_query_embedding,
         limit=5,
         with_payload=True,
     )
+    vector_results = vector_result_obj.points if hasattr(vector_result_obj, 'points') else []
 
     filtered_results, _ = qdrant_client.scroll(
         collection_name=collection_name, scroll_filter=keyword_filter, limit=3
